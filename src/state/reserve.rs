@@ -1,3 +1,5 @@
+use {super::last_update::LastUpdate, crate::math::Decimal, solana_program::pubkey::Pubkey};
+
 /// Reserve configuration values
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct ReserveConfig {
@@ -41,4 +43,86 @@ pub struct ReserveFees {
     pub flash_loan_fee_wad: u64,
     /// Amount of fee going to host account, if provided in liquidate and repay
     pub host_fee_percentage: u8,
+}
+
+/// Lending market reserve state
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Reserve {
+    /// Version of the struct
+    pub version: u8,
+    /// Last slot when supply and rates updated
+    pub last_update: LastUpdate,
+    /// Lending market address
+    pub lending_market: Pubkey,
+    /// Reserve liquidity
+    pub liquidity: ReserveLiquidity,
+    /// Reserve collateral
+    pub collateral: ReserveCollateral,
+    /// Reserve configuration values
+    pub config: ReserveConfig,
+}
+
+/// Reserve liquidity
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ReserveLiquidity {
+    /// Reserve liquidity mint address
+    pub mint_pubkey: Pubkey,
+    /// Reserve liquidity mint decimals
+    pub mint_decimals: u8,
+    /// Reserve liquidity supply address
+    pub supply_pubkey: Pubkey,
+    /// Reserve liquidity fee receiver address
+    pub fee_receiver: Pubkey,
+    /// Reserve liquidity oracle account
+    pub oracle_pubkey: Pubkey,
+    /// Reserve liquidity available
+    pub available_amount: u64,
+    /// Reserve liquidity borrowed
+    pub borrowed_amount_wads: Decimal,
+    /// Reserve liquidity cumulative borrow rate
+    pub cumulative_borrow_rate_wads: Decimal,
+    /// Reserve liquidity market price in quote currency
+    pub market_price: Decimal,
+}
+
+impl ReserveLiquidity {
+    pub fn new(params: NewReserveLiquidityParams) -> Self {
+        Self {
+            mint_pubkey: params.mint_pubkey,
+            mint_decimals: params.mint_decimals,
+            supply_pubkey: params.supply_pubkey,
+            fee_receiver: params.fee_receiver,
+            oracle_pubkey: params.oracle_pubkey,
+            available_amount: 0,
+            borrowed_amount_wads: Decimal::zero(),
+            cumulative_borrow_rate_wads: Decimal::one(),
+            market_price: params.market_price,
+        }
+    }
+}
+
+pub struct NewReserveLiquidityParams {
+    /// Reserve liquidity mint address
+    pub mint_pubkey: Pubkey,
+    /// Reserve liquidity mint decimals
+    pub mint_decimals: u8,
+    /// Reserve liquidity supply address
+    pub supply_pubkey: Pubkey,
+    /// Reserve liquidity fee receiver address
+    pub fee_receiver: Pubkey,
+    /// Reserve liquidity oracle account
+    pub oracle_pubkey: Pubkey,
+    /// Reserve liquidity market price in quote currency
+    pub market_price: Decimal,
+}
+
+/// Reserve collateral
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ReserveCollateral {
+    /// Reserve collateral mint address
+    pub mint_pubkey: Pubkey,
+    /// Reserve collateral mint supply, used for exchange rate
+    pub mint_total_supply: u64,
+    /// Reserve collateral supply address
+    pub supply_pubkey: Pubkey,
 }

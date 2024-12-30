@@ -18,7 +18,7 @@ fn process_instruction(
     instruction_data: &[u8],
 ) -> ProgramResult {
     if let Err(error) = processor::process_instruction(program_id, accounts, instruction_data) {
-        // error.print::<LendingError>();
+        error.print::<LendingError>();
         return Err(error);
     }
     Ok(())

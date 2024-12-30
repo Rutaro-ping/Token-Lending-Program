@@ -1,13 +1,13 @@
-use arrayref::{array_mut_ref, array_ref, array_refs, mut_array_refs};
-use solana_program::{
-    msg,
-    program_error::ProgramError,
-    program_pack::{IsInitialized, Pack, Sealed},
-    pubkey::Pubkey,
-    pubkey::PUBKEY_BYTES,
+use {
+    super::{PROGRAM_VERSION, UNINITIALIZED_VERSION},
+    arrayref::{array_mut_ref, array_ref, array_refs, mut_array_refs},
+    solana_program::{
+        msg,
+        program_error::ProgramError,
+        program_pack::{IsInitialized, Pack, Sealed},
+        pubkey::{Pubkey, PUBKEY_BYTES},
+    },
 };
-
-use super::{PROGRAM_VERSION, UNINITIALIZED_VERSION};
 
 /// Initialize a lending market
 pub struct InitLendingMarketParams {

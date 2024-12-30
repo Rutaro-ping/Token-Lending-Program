@@ -1,14 +1,17 @@
-use solana_program::{
-    instruction::{AccountMeta, Instruction},
-    msg,
-    program_error::ProgramError,
-    pubkey::{Pubkey, PUBKEY_BYTES},
-    sysvar,
+use {
+    crate::{
+        error::LendingError,
+        state::{ReserveConfig, ReserveFees},
+    },
+    solana_program::{
+        instruction::{AccountMeta, Instruction},
+        msg,
+        program_error::ProgramError,
+        pubkey::{Pubkey, PUBKEY_BYTES},
+        sysvar,
+    },
+    std::{convert::TryInto, mem::size_of},
 };
-
-use crate::{error::LendingError, state::ReserveFees};
-use crate::state::ReserveConfig;
-use std::{convert::TryInto, mem::size_of};
 
 /// Instructions supported by the lending program.
 #[derive(Debug, PartialEq)]
@@ -276,6 +279,10 @@ pub fn init_lending_market(
     lending_market_pubkey: Pubkey,
     oracle_program_id: Pubkey,
 ) -> Instruction {
+    println!(
+        "init_lending_market lending_market_pubkey: {:?}",
+        lending_market_pubkey
+    );
     Instruction {
         program_id,
         accounts: vec![
@@ -285,7 +292,6 @@ pub fn init_lending_market(
             AccountMeta::new_readonly(oracle_program_id, false),
         ],
         data: LendingInstruction::InitLendingMarket {
-          
             owner,
             quote_currency,
         }
