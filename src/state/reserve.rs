@@ -1,4 +1,11 @@
-use {super::last_update::LastUpdate, crate::math::Decimal, solana_program::pubkey::Pubkey};
+use {
+    super::{last_update::LastUpdate, WAD},
+    crate::{
+        error::LendingError,
+        math::{Decimal, Rate, TryAdd, TryDiv, TryMul},
+    },
+    solana_program::{entrypoint::ProgramResult, msg, program_error::ProgramError, pubkey::Pubkey},
+};
 
 /// Reserve configuration values
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -24,6 +31,59 @@ pub struct ReserveConfig {
     pub fees: ReserveFees,
 }
 
+impl ReserveConfig {
+    pub fn validate(&self) -> ProgramResult {
+        if self.optimal_utilization_rate > 100 {
+            msg!("Optimal utilization rate must be in range [0, 100]");
+            return Err(LendingError::InvalidConfig.into());
+        }
+        if self.loan_to_value_ratio >= 100 {
+            msg!("Loan to value ratio must be in range [0, 100)");
+            return Err(LendingError::InvalidConfig.into());
+        }
+        if self.liquidation_bonus > 100 {
+            msg!("Liquidation bonus must be in range [0, 100]");
+            return Err(LendingError::InvalidConfig.into());
+        }
+        if self.liquidation_threshold <= self.loan_to_value_ratio
+            || self.liquidation_threshold > 100
+        {
+            msg!("Liquidation threshold must be in range (LTV, 100]");
+            return Err(LendingError::InvalidConfig.into());
+        }
+        if self.optimal_borrow_rate < self.min_borrow_rate {
+            msg!("Optimal borrow rate must be >= min borrow rate");
+            return Err(LendingError::InvalidConfig.into());
+        }
+        if self.optimal_borrow_rate > self.max_borrow_rate {
+            msg!("Optimal borrow rate must be <= max borrow rate");
+            return Err(LendingError::InvalidConfig.into());
+        }
+        if self.fees.borrow_fee_wad >= WAD {
+            msg!("Borrow fee must be in range [0, 1_000_000_000_000_000_000)");
+            return Err(LendingError::InvalidConfig.into());
+        }
+        if self.fees.flash_loan_fee_wad >= WAD {
+            msg!("Flash loan fee must be in range [0, 1_000_000_000_000_000_000)");
+            return Err(LendingError::InvalidConfig.into());
+        }
+        if self.fees.host_fee_percentage > 100 {
+            msg!("Host fee percentage must be in range [0, 100]");
+            return Err(LendingError::InvalidConfig.into());
+        }
+
+        Ok(())
+    }
+}
+
+/// Calculate fees exclusive or inclusive of an amount
+pub enum FeeCalculation {
+    /// Fee added to amount: fee = rate * amount
+    Exclusive,
+    /// Fee included in amount: fee = (rate / (1 + rate)) * amount
+    Inclusive,
+}
+
 /// Additional fee information on a reserve
 ///
 /// These exist separately from interest accrual fees, and are specifically for
@@ -43,6 +103,65 @@ pub struct ReserveFees {
     pub flash_loan_fee_wad: u64,
     /// Amount of fee going to host account, if provided in liquidate and repay
     pub host_fee_percentage: u8,
+}
+
+impl ReserveFees {
+    pub fn calculate_borrow_fees(
+        &self,
+        borrow_amount: Decimal,
+        fee_calculation: FeeCalculation,
+    ) -> Result<(u64, u64), ProgramError> {
+        self.calculate_fees(borrow_amount, self.borrow_fee_wad, fee_calculation)
+    }
+    pub fn calculate_fees(
+        &self,
+        amount: Decimal,
+        fee_wad: u64,
+        fee_calculation: FeeCalculation,
+    ) -> Result<(u64, u64), ProgramError> {
+        let borrow_fee_rate = Rate::from_scaled_val(fee_wad);
+        let host_fee_rate = Rate::from_percent(self.host_fee_percentage);
+        if borrow_fee_rate > Rate::zero() && amount > Decimal::zero() {
+            let need_to_assess_host_fee = host_fee_rate > Rate::zero();
+            let minimum_fee: u64 = if need_to_assess_host_fee {
+                2 //1 token to owner, 1 to host
+            } else {
+                1 // 1 token to owner, nothing else
+            };
+
+            let borrow_fee_amount = match fee_calculation {
+                // Calculate fee to be added to borrow: fee = amount * rate
+                FeeCalculation::Exclusive => amount.try_mul(borrow_fee_rate)?,
+                // Calculate fee to be subtracted from borrow: fee = amount * (rate / (rate + 1))
+                FeeCalculation::Inclusive => {
+                    let borrow_fee_rate =
+                        borrow_fee_rate.try_div(borrow_fee_rate.try_add(Rate::one())?)?;
+                    amount.try_mul(borrow_fee_rate)?
+                }
+            };
+
+            let borrow_fee_decimal = borrow_fee_amount.max(minimum_fee.into());
+            println!(
+                "borrow_fee_decimal: {}, amount: {}",
+                borrow_fee_decimal, amount
+            );
+            if borrow_fee_decimal >= amount {
+                msg!("Borrow amount is too small to receive liquidity after fees");
+                return Err(LendingError::BorrowTooSmall.into());
+            }
+            let borrow_fee = borrow_fee_decimal.try_round_u64()?;
+            let host_fee = if need_to_assess_host_fee {
+                borrow_fee_decimal
+                    .try_mul(host_fee_rate)?
+                    .try_round_u64()?
+                    .max(1)
+            } else {
+                0
+            };
+            return Ok((borrow_fee, host_fee));
+        }
+        Ok((0, 0))
+    }
 }
 
 /// Lending market reserve state
@@ -125,4 +244,34 @@ pub struct ReserveCollateral {
     pub mint_total_supply: u64,
     /// Reserve collateral supply address
     pub supply_pubkey: Pubkey,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn borrow_fee_calculation_min_host() {
+        let fees = ReserveFees {
+            borrow_fee_wad: 10_000_000_000_000_000, // 1%
+            flash_loan_fee_wad: 0,
+            host_fee_percentage: 20,
+        };
+        // only 2 tokens borrowed, get error
+        let err = fees
+            .calculate_borrow_fees(Decimal::from(2u64), FeeCalculation::Exclusive)
+            .unwrap_err();
+        assert_eq!(err, LendingError::BorrowTooSmall.into()); // minimum of 3
+
+        // only 1 token borrowed, get error
+        let err = fees
+            .calculate_borrow_fees(Decimal::one(), FeeCalculation::Exclusive)
+            .unwrap_err();
+        assert_eq!(err, LendingError::BorrowTooSmall.into());
+
+        let (total_fee, host_fee) = fees
+            .calculate_borrow_fees(Decimal::zero(), FeeCalculation::Exclusive)
+            .unwrap();
+        assert_eq!(total_fee, 0);
+        assert_eq!(host_fee, 0);
+    }
 }

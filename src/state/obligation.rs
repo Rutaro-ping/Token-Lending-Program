@@ -37,10 +37,6 @@ impl ObligationLiquidity {
     }
 
     pub fn accrue_interest(&mut self, cumulative_borrow_rate_wads: Decimal) -> ProgramResult {
-        println!(
-            "compare result:{:?}",
-            cumulative_borrow_rate_wads.cmp(&self.cumulative_borrow_rate_wads)
-        );
         match cumulative_borrow_rate_wads.cmp(&self.cumulative_borrow_rate_wads) {
             Ordering::Less => {
                 msg!("Interest rate cannot be negative");
@@ -51,7 +47,6 @@ impl ObligationLiquidity {
                 let compounded_interest_rate: Rate = cumulative_borrow_rate_wads
                     .try_div(self.cumulative_borrow_rate_wads)?
                     .try_into()?;
-                println!("compounded_interest_rate: {:?}", compounded_interest_rate);
                 self.borrowed_amount_wads = self
                     .borrowed_amount_wads
                     .try_mul(compounded_interest_rate)?;
@@ -142,13 +137,40 @@ pub struct ObligationCollateral {
     pub market_value: Decimal,
 }
 
-impl ObligationCollateral {}
+impl ObligationCollateral {
+    /// Create new obligation collateral
+    pub fn new(deposit_reserve: Pubkey) -> Self {
+        Self {
+            deposit_reserve,
+            deposited_amount: 0,
+            market_value: Decimal::zero(),
+        }
+    }
+    pub fn deposit(&mut self, collateral_amount: u64) -> ProgramResult {
+        self.deposited_amount = self
+            .deposited_amount
+            .checked_add(collateral_amount)
+            .ok_or(LendingError::MathOverflow)?;
+        Ok(())
+    }
+    /// Decrease deposited collateral
+    pub fn withdraw(&mut self, collateral_amount: u64) -> ProgramResult {
+        self.deposited_amount = self
+            .deposited_amount
+            .checked_sub(collateral_amount)
+            .ok_or(LendingError::MathOverflow)?;
+        Ok(())
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use {
         super::*,
-        crate::{error::LendingError, math::WAD},
+        crate::{
+            error::LendingError,
+            math::{TryAdd, WAD},
+        },
         proptest::prelude::*,
     };
     const MAX_COMPOUNDED_INTEREST: u64 = 100; // 10,000%
@@ -220,9 +242,48 @@ mod tests {
           }],
           ..Obligation::default()
         };
-        obligation.repay(repay_amount_wads, 0)?;
+       let _ = obligation.repay(repay_amount_wads, 0)?;
         assert!(obligation.borrows[0].borrowed_amount_wads < borrowed_amount_wads);
         assert!(obligation.borrows[0].borrowed_amount_wads > Decimal::zero());
       }
+      #[test]
+      fn repay_full(
+          (repay_amount, borrowed_amount) in repay_full_amounts(),
+      ) {
+          let borrowed_amount_wads = Decimal::from_scaled_val(borrowed_amount);
+          let repay_amount_wads = Decimal::from_scaled_val(repay_amount);
+          let mut obligation = Obligation {
+              borrows: vec![ObligationLiquidity {
+                  borrowed_amount_wads,
+                  ..ObligationLiquidity::default()
+              }],
+              ..Obligation::default()
+          };
+
+         let _ = obligation.repay(repay_amount_wads, 0)?;
+          assert_eq!(obligation.borrows.len(), 0);
+      }
+      #[test]
+        fn accrue_interest(
+            (current_borrow_rate, new_borrow_rate) in cumulative_rates(),
+            borrowed_amount in 0..=u64::MAX,
+        ) {
+            let cumulative_borrow_rate_wads = Decimal::one().try_add(Decimal::from_scaled_val(current_borrow_rate))?;
+            let borrowed_amount_wads = Decimal::from(borrowed_amount);
+            let mut liquidity = ObligationLiquidity {
+                cumulative_borrow_rate_wads,
+                borrowed_amount_wads,
+                ..ObligationLiquidity::default()
+            };
+
+            let next_cumulative_borrow_rate = Decimal::one().try_add(Decimal::from_scaled_val(new_borrow_rate))?;
+            let _ = liquidity.accrue_interest(next_cumulative_borrow_rate)?;
+
+            if next_cumulative_borrow_rate > cumulative_borrow_rate_wads {
+                assert!(liquidity.borrowed_amount_wads > borrowed_amount_wads);
+            } else {
+                assert!(liquidity.borrowed_amount_wads == borrowed_amount_wads);
+            }
+        }
     }
 }
