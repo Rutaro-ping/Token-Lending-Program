@@ -12,10 +12,8 @@ async fn test_success() {
         spl_token_lending::id(),
         processor!(process_instruction),
     );
-    // test.set_compute_max_units(20_000 * 80);
+    test.set_compute_max_units(20_000);
     let (mut banks_client, payer, _recent_blockhash) = test.start().await;
-    let _test_lending_market = TestLendingMarket::init(&mut banks_client, &payer).await;
-    // test_lending_market.validate_state(&mut banks_client).await;
-
-    println!("recent_blockhash: {:?}", _recent_blockhash);
+    let test_lending_market = TestLendingMarket::init(&mut banks_client, &payer).await;
+    test_lending_market.validate_state(&mut banks_client).await;
 }

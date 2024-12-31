@@ -18,10 +18,13 @@ use {
         state::{Account as Token, Mint},
     },
     spl_token_lending::{
-        instruction::init_lending_market,
+        instruction::{init_lending_market, init_reserve},
         math::Decimal,
         pyth,
-        state::{InitLendingMarketParams, LendingMarket, ReserveConfig, ReserveFees},
+        state::{
+            InitLendingMarketParams, LendingMarket, Reserve, ReserveConfig, ReserveFees,
+            PROGRAM_VERSION,
+        },
     },
     std::str::FromStr,
 };

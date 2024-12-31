@@ -52,14 +52,13 @@ fn process_init_lending_market(
     quote_currency: [u8; 32],
     accounts: &[AccountInfo],
 ) -> ProgramResult {
-    msg!("accounts: {:#?}", accounts);
     let account_info_iter = &mut accounts.iter();
     let lending_market_info = next_account_info(account_info_iter)?;
     // next_account_info(account_info_iter)?; //fixme: clean up this account
-
+    let rent = &Rent::from_account_info(next_account_info(account_info_iter)?)?;
     let token_program_id = next_account_info(account_info_iter)?;
     let oracle_program_id = next_account_info(account_info_iter)?;
-    assert_rent_exempt(lending_market_info)?;
+    assert_rent_exempt(rent, lending_market_info)?;
 
     let mut lending_market = assert_uninitialized::<LendingMarket>(lending_market_info)?;
 
@@ -87,17 +86,18 @@ fn process_init_reserve(
     config: ReserveConfig,
     accounts: &[AccountInfo],
 ) -> ProgramResult {
-    // if liquidity_amount == 0 {
-    msg!("Reserve must be initialized with liquidity");
-    return Err(LendingError::InvalidAmount.into());
-    // }
+    if liquidity_amount == 0 {
+        msg!("Reserve must be initialized with liquidity");
+        return Err(LendingError::InvalidAmount.into());
+    }
+    config.validate()?;
+    Ok(())
 }
 
-fn assert_rent_exempt(account_info: &AccountInfo) -> ProgramResult {
-    let rent = &Rent::get()?;
+fn assert_rent_exempt(rent: &Rent, account_info: &AccountInfo) -> ProgramResult {
     if !rent.is_exempt(account_info.lamports(), account_info.data_len()) {
         msg!(&rent.minimum_balance(account_info.data_len()).to_string());
-        Err(LendingError::NotRentExempt)?
+        Err(LendingError::NotRentExempt.into())
     } else {
         Ok(())
     }
@@ -106,11 +106,10 @@ fn assert_rent_exempt(account_info: &AccountInfo) -> ProgramResult {
 fn assert_uninitialized<T: IsInitialized + Pack>(
     account_info: &AccountInfo,
 ) -> Result<T, ProgramError> {
-    msg!("account_info.data: {:#?}", account_info);
     let account = T::unpack_unchecked(&account_info.data.borrow())?;
 
     if account.is_initialized() {
-        Err(LendingError::AlreadyInitialized)?
+        Err(LendingError::AlreadyInitialized.into())
     } else {
         Ok(account)
     }

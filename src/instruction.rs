@@ -287,7 +287,7 @@ pub fn init_lending_market(
         program_id,
         accounts: vec![
             AccountMeta::new(lending_market_pubkey, false),
-            // AccountMeta::new_readonly(sysvar::rent::id(), false),
+            AccountMeta::new_readonly(sysvar::rent::id(), false),
             AccountMeta::new_readonly(spl_token::id(), false),
             AccountMeta::new_readonly(oracle_program_id, false),
         ],
