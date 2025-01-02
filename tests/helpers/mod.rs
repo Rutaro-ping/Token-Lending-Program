@@ -92,7 +92,7 @@ pub fn add_lending_market(test: &mut ProgramTest) -> TestLendingMarket {
         .unwrap()
         .pubkey();
     test.add_packable_account(
-        lending_market_authority,
+        lending_market_pubkey,
         u32::MAX as u64,
         &LendingMarket::new(InitLendingMarketParams {
             bump_seed,
@@ -112,6 +112,7 @@ pub fn add_lending_market(test: &mut ProgramTest) -> TestLendingMarket {
     }
 }
 
+#[derive(Debug)]
 pub struct TestLendingMarket {
     pub pubkey: Pubkey,
     pub owner: Keypair,
@@ -525,3 +526,111 @@ impl TestReserve {
 //     args: AddReserveArgs,
 // ) -> TestReserve {
 // }
+pub async fn create_token_account(
+    banks_client: &mut BanksClient,
+    mint_pubkey: Pubkey,
+    payer: &Keypair,
+    authority: Option<Pubkey>,
+    native_amount: Option<u64>,
+) -> Pubkey {
+    let token_keypair = Keypair::new();
+    let token_pubkey = token_keypair.pubkey();
+    let authority_pubkey = authority.unwrap_or_else(|| payer.pubkey());
+    let rent = banks_client.get_rent().await.unwrap();
+    let lamports = rent.minimum_balance(Token::LEN) + native_amount.unwrap_or_default();
+
+    let mut transaction = Transaction::new_with_payer(
+        &[
+            create_account(
+                &payer.pubkey(),
+                &token_pubkey,
+                lamports,
+                Token::LEN as u64,
+                &spl_token::id(),
+            ),
+            spl_token::instruction::initialize_account(
+                &spl_token::id(),
+                &token_pubkey,
+                &mint_pubkey,
+                &authority_pubkey,
+            )
+            .unwrap(),
+        ],
+        Some(&payer.pubkey()),
+    );
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    transaction.sign(&[payer, &token_keypair], recent_blockhash);
+
+    assert_matches!(banks_client.process_transaction(transaction).await, Ok(()));
+
+    token_pubkey
+}
+
+pub async fn get_token_balance(banks_client: &mut BanksClient, pubkey: Pubkey) -> u64 {
+    let token: Account = banks_client.get_account(pubkey).await.unwrap().unwrap();
+
+    spl_token::state::Account::unpack(&token.data[..])
+        .unwrap()
+        .amount
+}
+pub async fn mint_to(
+    banks_client: &mut BanksClient,
+    mint_pubkey: Pubkey,
+    payer: &Keypair,
+    account_pubkey: Pubkey,
+    authority: &Keypair,
+    amount: u64,
+) {
+    let mut transaction = Transaction::new_with_payer(
+        &[spl_token::instruction::mint_to(
+            &spl_token::id(),
+            &mint_pubkey,
+            &account_pubkey,
+            &authority.pubkey(),
+            &[],
+            amount,
+        )
+        .unwrap()],
+        Some(&payer.pubkey()),
+    );
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    transaction.sign(&[payer, authority], recent_blockhash);
+
+    assert_matches!(banks_client.process_transaction(transaction).await, Ok(()));
+}
+
+pub async fn create_and_mint_to_token_account(
+    banks_client: &mut BanksClient,
+    mint_pubkey: Pubkey,
+    mint_authority: Option<&Keypair>,
+    payer: &Keypair,
+    authority: Pubkey,
+    amount: u64,
+) -> Pubkey {
+    if let Some(mint_authority) = mint_authority {
+        let account_pubkey =
+            create_token_account(banks_client, mint_pubkey, payer, Some(authority), None).await;
+
+        mint_to(
+            banks_client,
+            mint_pubkey,
+            payer,
+            account_pubkey,
+            mint_authority,
+            amount,
+        )
+        .await;
+
+        account_pubkey
+    } else {
+        create_token_account(
+            banks_client,
+            mint_pubkey,
+            payer,
+            Some(authority),
+            Some(amount),
+        )
+        .await
+    }
+}

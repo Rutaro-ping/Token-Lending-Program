@@ -32,6 +32,10 @@ pub fn process_instruction(
             msg!("Instruction: Init Lending Market");
             process_init_lending_market(program_id, owner, quote_currency, accounts)
         }
+        LendingInstruction::SetLendingMarketOwner { new_owner } => {
+            msg!("Instruction: Set Lending Market Owner");
+            process_set_lending_market_owner(program_id, new_owner, accounts)
+        }
         LendingInstruction::InitReserve {
             liquidity_amount,
             config,
@@ -66,10 +70,6 @@ fn process_init_lending_market(
         msg!("Lending market provided is not owned by the lending program");
         return Err(LendingError::InvalidAccountOwner)?;
     }
-    if oracle_program_id.data_is_empty() {
-        msg!("Oracle program id is empty");
-        return Err(LendingError::InvalidAccountInput)?;
-    }
     lending_market.init(InitLendingMarketParams {
         bump_seed: Pubkey::find_program_address(&[lending_market_info.key.as_ref()], program_id).1,
         owner,
@@ -77,6 +77,7 @@ fn process_init_lending_market(
         token_program_id: *token_program_id.key,
         oracle_program_id: *oracle_program_id.key,
     });
+    LendingMarket::pack(lending_market, &mut lending_market_info.data.borrow_mut())?;
     Ok(())
 }
 
@@ -109,10 +110,39 @@ fn assert_uninitialized<T: IsInitialized + Pack>(
     let account = T::unpack_unchecked(&account_info.data.borrow())?;
 
     if account.is_initialized() {
+        msg!("Account is already initialized");
         Err(LendingError::AlreadyInitialized.into())
     } else {
         Ok(account)
     }
+}
+#[inline(never)] // avoid stack frame limit
+fn process_set_lending_market_owner(
+    program_id: &Pubkey,
+    new_owner: Pubkey,
+    accounts: &[AccountInfo],
+) -> ProgramResult {
+   
+    let account_info_iter = &mut accounts.iter();
+    let lending_market_info = next_account_info(account_info_iter)?;
+    let lending_market_owner_info = next_account_info(account_info_iter)?;
+
+    let mut lending_market = LendingMarket::unpack(&lending_market_info.data.borrow())?;
+    if lending_market_info.owner != program_id {
+        msg!("Lending market provided is not owned by the lending program");
+        return Err(LendingError::InvalidAccountOwner.into());
+    }
+    if &lending_market.owner != lending_market_owner_info.key {
+        msg!("Lending market owner does not match the lending market owner provided");
+        return Err(LendingError::InvalidMarketOwner.into());
+    }
+    if !lending_market_owner_info.is_signer {
+        msg!("Lending market owner provided must be a signer");
+        return Err(LendingError::InvalidSigner.into());
+    }
+    lending_market.owner = new_owner;
+    LendingMarket::pack(lending_market, &mut lending_market_info.data.borrow_mut())?;
+    Ok(())
 }
 
 impl PrintProgramError for LendingError {
