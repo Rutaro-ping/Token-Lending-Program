@@ -10,7 +10,7 @@ use {
         program_error::ProgramError,
     },
 };
-pub use {crate::math::WAD, lending_market::*, reserve::*};
+pub use {crate::math::WAD, lending_market::*, obligation::*, reserve::*};
 
 pub const PROGRAM_VERSION: u8 = 1;
 

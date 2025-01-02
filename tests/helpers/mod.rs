@@ -9,21 +9,20 @@ use {
         program_pack::Pack,
         pubkey::Pubkey,
         signature::{read_keypair_file, Keypair},
-        signer::Signer,
+        signer::{keypair, Signer},
         system_instruction::create_account,
         transaction::{Transaction, TransactionError},
     },
     spl_token::{
         instruction::approve,
-        state::{Account as Token, Mint},
+        state::{Account as Token, AccountState, Mint},
     },
     spl_token_lending::{
         instruction::{init_lending_market, init_reserve},
-        math::Decimal,
+        math::{Decimal, Rate, TryAdd, TryMul},
         pyth,
         state::{
-            InitLendingMarketParams, LendingMarket, Reserve, ReserveConfig, ReserveFees,
-            PROGRAM_VERSION,
+            InitLendingMarketParams, InitReserveParams, LendingMarket, NewReserveCollateralParams, NewReserveLiquidityParams, Obligation, Reserve, ReserveCollateral, ReserveConfig, ReserveFees, ReserveLiquidity, INITIAL_COLLATERAL_RATIO, PROGRAM_VERSION
         },
     },
     std::str::FromStr,
@@ -518,14 +517,203 @@ impl TestReserve {
     }
 }
 
-// pub fn add_reserve(
-//     test: &mut ProgramTest,
-//     lending_market: TestLendingMarket,
-//     oracle: &TestOracle,
-//     user_accounts_owner: &Keypair,
-//     args: AddReserveArgs,
-// ) -> TestReserve {
-// }
+pub fn add_reserve(
+    test: &mut ProgramTest,
+    lending_market: &TestLendingMarket,
+    oracle: &TestOracle,
+    user_accounts_owner: &Keypair,
+    args: AddReserveArgs,
+) -> TestReserve {
+    let AddReserveArgs {
+        name,
+        config,
+        liquidity_amount,
+        liquidity_mint_pubkey,
+        liquidity_mint_decimals,
+        user_liquidity_amount,
+        borrow_amount,
+        initial_borrow_rate,
+        collateral_amount,
+        mark_fresh,
+        slots_elapsed,
+    } = args;
+
+    let is_native = if liquidity_mint_pubkey == spl_token::native_mint::id() {
+        COption::Some(1)
+    } else {
+        COption::None
+    };
+
+    let current_slot = slots_elapsed + 1;
+
+    let collateral_mint_pubkey = Pubkey::new_unique();
+    test.add_packable_account(
+        collateral_mint_pubkey,
+        u32::MAX as u64,
+        &Mint {
+            is_initialized: true,
+            decimals: liquidity_mint_decimals,
+            mint_authority: COption::Some(lending_market.authority),
+            supply: collateral_amount,
+            ..Mint::default()
+        },
+        &spl_token::id(),
+    );
+
+    let collateral_supply_pubkey = Pubkey::new_unique();
+    test.add_packable_account(
+        collateral_supply_pubkey,
+        u32::MAX as u64,
+        &Token {
+            mint: collateral_mint_pubkey,
+            owner: lending_market.authority,
+            amount: collateral_amount,
+            state: AccountState::Initialized,
+            ..Token::default()
+        },
+        &spl_token::id(),
+    );
+
+    let amount = if let COption::Some(rent_reserve) = is_native {
+        liquidity_amount + rent_reserve
+    } else {
+        u32::MAX as u64
+    };
+
+    let liquidity_supply_pubkey = Pubkey::new_unique();
+    test.add_packable_account(
+        liquidity_supply_pubkey,
+        amount,
+        &Token {
+            mint: liquidity_mint_pubkey,
+            owner: lending_market.authority,
+            amount: liquidity_amount,
+            state: AccountState::Initialized,
+            is_native,
+            ..Token::default()
+        },
+        &spl_token::id(),
+    );
+
+    let liquidity_fee_receiver_pubkey = Pubkey::new_unique();
+    test.add_packable_account(
+        liquidity_fee_receiver_pubkey,
+        u32::MAX as u64,
+        &Token {
+            mint: liquidity_mint_pubkey,
+            owner: lending_market.owner.pubkey(),
+            amount: 0,
+            state: AccountState::Initialized,
+            ..Token::default()
+        },
+        &spl_token::id(),
+    );
+
+    let liquidity_host_pubkey = Pubkey::new_unique();
+    test.add_packable_account(
+        liquidity_host_pubkey,
+        u32::MAX as u64,
+        &Token {
+            mint: liquidity_mint_pubkey,
+            owner: user_accounts_owner.pubkey(),
+            amount: 0,
+            state: AccountState::Initialized,
+            ..Token::default()
+        },
+        &spl_token::id(),
+    );
+
+    let reserve_keypair = Keypair::new();
+    let reserve_pubkey = reserve_keypair.pubkey();
+    let mut reserve = Reserve::new(InitReserveParams {
+        current_slot,
+        lending_market: lending_market.pubkey,
+        liquidity: ReserveLiquidity::new(NewReserveLiquidityParams {
+            mint_pubkey: liquidity_mint_pubkey,
+            mint_decimals: liquidity_mint_decimals,
+            supply_pubkey: liquidity_supply_pubkey,
+            fee_receiver: liquidity_fee_receiver_pubkey,
+            oracle_pubkey: oracle.price_pubkey,
+            market_price: oracle.price,
+        }),
+        collateral: ReserveCollateral::new(NewReserveCollateralParams {
+            mint_pubkey: collateral_mint_pubkey,
+            supply_pubkey: collateral_supply_pubkey,
+        }),
+        config,
+    });
+    reserve.deposit_liquidity(liquidity_amount).unwrap();
+    reserve.liquidity.borrow(borrow_amount.into()).unwrap();
+    let borrow_rate_multiplier = Rate::one()
+        .try_add(Rate::from_percent(initial_borrow_rate))
+        .unwrap();
+    reserve.liquidity.cumulative_borrow_rate_wads =
+        Decimal::one().try_mul(borrow_rate_multiplier).unwrap();
+
+    if mark_fresh {
+        reserve.last_update.update_slot(current_slot);
+    }
+
+    test.add_packable_account(
+        reserve_pubkey,
+        u32::MAX as u64,
+        &reserve,
+        &spl_token_lending::id(),
+    );
+
+    let amount = if let COption::Some(rent_reserve) = is_native {
+        user_liquidity_amount + rent_reserve
+    } else {
+        u32::MAX as u64
+    };
+
+    let user_liquidity_pubkey = Pubkey::new_unique();
+    test.add_packable_account(
+        user_liquidity_pubkey,
+        amount,
+        &Token {
+            mint: liquidity_mint_pubkey,
+            owner: user_accounts_owner.pubkey(),
+            amount: user_liquidity_amount,
+            state: AccountState::Initialized,
+            is_native,
+            ..Token::default()
+        },
+        &spl_token::id(),
+    );
+    let user_collateral_pubkey = Pubkey::new_unique();
+    test.add_packable_account(
+        user_collateral_pubkey,
+        u32::MAX as u64,
+        &Token {
+            mint: collateral_mint_pubkey,
+            owner: user_accounts_owner.pubkey(),
+            amount: liquidity_amount * INITIAL_COLLATERAL_RATIO,
+            state: AccountState::Initialized,
+            ..Token::default()
+        },
+        &spl_token::id(),
+    );
+
+    TestReserve {
+        name,
+        pubkey: reserve_pubkey,
+        lending_market_pubkey: lending_market.pubkey,
+        config,
+        liquidity_mint_pubkey,
+        liquidity_mint_decimals,
+        liquidity_supply_pubkey,
+        liquidity_fee_receiver_pubkey,
+        liquidity_host_pubkey,
+        liquidity_oracle_pubkey: oracle.price_pubkey,
+        collateral_mint_pubkey,
+        collateral_supply_pubkey,
+        user_liquidity_pubkey,
+        user_collateral_pubkey,
+        market_price: oracle.price,
+    }
+}
+
 pub async fn create_token_account(
     banks_client: &mut BanksClient,
     mint_pubkey: Pubkey,
@@ -632,5 +820,67 @@ pub async fn create_and_mint_to_token_account(
             Some(amount),
         )
         .await
+    }
+}
+
+#[derive(Debug)]
+pub struct TestObligationCollateral {
+    pub obligation_pubkey: Pubkey,
+    pub deposit_reserve: Pubkey,
+    pub deposited_amount: u64,
+}
+#[derive(Debug)]
+pub struct TestObligationLiquidity {
+    pub obligation_pubkey: Pubkey,
+    pub borrow_reserve: Pubkey,
+    pub borrowed_amount_wads: Decimal,
+}
+
+#[derive(Debug)]
+pub struct TestObligation {
+    pub pubkey: Pubkey,
+    pub lending_market: Pubkey,
+    pub owner: Pubkey,
+    pub deposits: Vec<TestObligationCollateral>,
+    pub borrows: Vec<TestObligationLiquidity>,
+}
+
+impl TestObligation {
+    #[allow(clippy::too_many_arguments)]
+    pub async fn init(
+        banks_client: &mut BanksClient,
+        lending_market: &TestLendingMarket,
+        user_accounts_owner: &Keypair,
+        payer: &Keypair,
+    ) -> Result<Self, TransactionError> {
+        let obligation_keypair = Keypair::new();
+
+        let obligation = TestObligation {
+            pubkey: obligation_keypair.pubkey(),
+            lending_market: lending_market.pubkey,
+            owner: user_accounts_owner.pubkey(),
+            deposits: vec![],
+            borrows: vec![],
+        };
+        let rent = banks_client.get_rent().await.unwrap();
+        let mut transaction = Transaction::new_with_payer(
+            &[
+                create_account(
+                    &payer.pubkey(),
+                    &obligation_keypair.pubkey(),
+                    rent.minimum_balance(Obligation::LEN),
+                    Obligation::LEN as u64,
+                    &spl_token_lending::id(),
+                ),
+                init_obligation(
+                    spl_token_lending::id(),
+                    obligation.pubkey,
+                    lending_market.pubkey,
+                    user_accounts_owner.pubkey(),
+                ),
+            ],
+            Some(&payer.pubkey()),
+        );
+        todo!()
     }
 }

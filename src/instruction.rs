@@ -187,7 +187,14 @@ impl LendingInstruction {
                 buf.push(1);
                 buf.extend_from_slice(new_owner.as_ref());
             }
-
+            LendingInstruction::InitReserve {
+                liquidity_amount,
+                config,
+            } => {
+                buf.push(2);
+                buf.extend_from_slice(&liquidity_amount.to_le_bytes());
+                Self::extend_buffer_from_reserve_config(&mut buf, &config);
+            }
             _ => unreachable!(),
         }
 
@@ -269,6 +276,19 @@ impl LendingInstruction {
                 host_fee_percentage,
             },
         })
+    }
+    // Helper function to pack a ReserveConfig into a Vec<u8> buffer
+    fn extend_buffer_from_reserve_config(buf: &mut Vec<u8>, config: &ReserveConfig) {
+        buf.extend_from_slice(&config.optimal_utilization_rate.to_le_bytes());
+        buf.extend_from_slice(&config.loan_to_value_ratio.to_le_bytes());
+        buf.extend_from_slice(&config.liquidation_bonus.to_le_bytes());
+        buf.extend_from_slice(&config.liquidation_threshold.to_le_bytes());
+        buf.extend_from_slice(&config.min_borrow_rate.to_le_bytes());
+        buf.extend_from_slice(&config.optimal_borrow_rate.to_le_bytes());
+        buf.extend_from_slice(&config.max_borrow_rate.to_le_bytes());
+        buf.extend_from_slice(&config.fees.borrow_fee_wad.to_le_bytes());
+        buf.extend_from_slice(&config.fees.flash_loan_fee_wad.to_le_bytes());
+        buf.extend_from_slice(&config.fees.host_fee_percentage.to_le_bytes());
     }
 }
 

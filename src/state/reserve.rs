@@ -222,13 +222,13 @@ impl Reserve {
     }
     /// Record deposited liquidity and return amount of collateral tokens to
     /// mint
-    pub fn deposit_liquidity(&mut self, liquidity_amount: u64) -> ProgramResult {
+    pub fn deposit_liquidity(&mut self, liquidity_amount: u64) -> Result<u64, ProgramError> {
         let collateral_amount = self
             .collateral_exchange_rate()?
             .liquidity_to_collateral(liquidity_amount)?;
         self.liquidity.deposit(liquidity_amount)?;
         self.collateral.mint(collateral_amount)?;
-        Ok(())
+        Ok(collateral_amount)
     }
     /// Record redeemed collateral and return amount of liquidity to withdraw
     pub fn redeem_collateral(&mut self, collateral_amount: u64) -> Result<u64, ProgramError> {

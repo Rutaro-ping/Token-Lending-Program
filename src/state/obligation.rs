@@ -1,5 +1,5 @@
 use {
-    super::{last_update::LastUpdate, PROGRAM_VERSION},
+    super::{last_update::LastUpdate, PROGRAM_VERSION, UNINITIALIZED_VERSION},
     crate::{
         error::LendingError,
         math::{Decimal, Rate, TryDiv, TryMul, TrySub},
@@ -7,6 +7,7 @@ use {
     solana_program::{
         clock::Slot, entrypoint::ProgramResult, msg, program_error::ProgramError, pubkey::Pubkey,
     },
+    solana_sdk::program_pack::{IsInitialized, Pack, Sealed},
     std::cmp::Ordering,
 };
 
@@ -160,6 +161,27 @@ impl ObligationCollateral {
             .checked_sub(collateral_amount)
             .ok_or(LendingError::MathOverflow)?;
         Ok(())
+    }
+}
+
+impl Sealed for Obligation {}
+impl IsInitialized for Obligation {
+    fn is_initialized(&self) -> bool {
+        self.version != UNINITIALIZED_VERSION
+    }
+}
+
+const OBLIGATION_COLLATERAL_LEN: usize = 56; // 32 + 8 + 16
+const OBLIGATION_LIQUIDITY_LEN: usize = 80; // 32 + 16 + 16 + 16
+const OBLIGATION_LEN: usize = 916; // 1 + 8 + 1 + 32 + 32 + 16 + 16 + 16 + 16 + 1 + 1 + (56 * 1) + (80 * 9)
+                                   // @TODO: break this up by obligation / collateral / liquidity https://git.io/JOCca
+impl Pack for Obligation {
+    const LEN: usize = OBLIGATION_LEN;
+    fn pack_into_slice(&self, dst: &mut [u8]) {
+        unimplemented!();
+    }
+    fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
+        unimplemented!();
     }
 }
 

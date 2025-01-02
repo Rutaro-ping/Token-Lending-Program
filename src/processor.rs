@@ -2,20 +2,29 @@ use {
     crate::{
         error::LendingError,
         instruction::LendingInstruction,
-        state::{InitLendingMarketParams, LendingMarket, ReserveConfig},
+        math::{Decimal, TryDiv, TryMul},
+        pyth,
+        state::{
+            InitLendingMarketParams, InitReserveParams, LendingMarket, NewReserveCollateralParams,
+            NewReserveLiquidityParams, Reserve, ReserveCollateral, ReserveConfig, ReserveLiquidity,
+        },
     },
     num_traits::FromPrimitive,
     solana_program::{
         account_info::{next_account_info, AccountInfo},
+        clock::Clock,
         decode_error::DecodeError,
         entrypoint::ProgramResult,
+        instruction::Instruction,
         msg,
+        program::{invoke, invoke_signed},
         program_error::{PrintProgramError, ProgramError},
         program_pack::{IsInitialized, Pack},
         pubkey::Pubkey,
         rent::Rent,
         sysvar::Sysvar,
     },
+    spl_token::state::Mint,
 };
 
 pub fn process_instruction(
@@ -92,6 +101,186 @@ fn process_init_reserve(
         return Err(LendingError::InvalidAmount.into());
     }
     config.validate()?;
+    let account_info_iter = &mut accounts.iter().peekable();
+    let source_liquidity_info = next_account_info(account_info_iter)?;
+    let destination_collateral_info = next_account_info(account_info_iter)?;
+    let reserve_info = next_account_info(account_info_iter)?;
+    let reserve_liquidity_mint_info = next_account_info(account_info_iter)?;
+    let reserve_liquidity_supply_info = next_account_info(account_info_iter)?;
+    let reserve_liquidity_fee_receiver_info = next_account_info(account_info_iter)?;
+    let reserve_collateral_mint_info = next_account_info(account_info_iter)?;
+    let reserve_collateral_supply_info = next_account_info(account_info_iter)?;
+    let pyth_product_info = next_account_info(account_info_iter)?;
+    let pyth_price_info = next_account_info(account_info_iter)?;
+    let lending_market_info = next_account_info(account_info_iter)?;
+    let lending_market_authority_info = next_account_info(account_info_iter)?;
+    let lending_market_owner_info = next_account_info(account_info_iter)?;
+    let user_transfer_authority_info = next_account_info(account_info_iter)?;
+    let clock = &Clock::from_account_info(next_account_info(account_info_iter)?)?;
+    let rent_info = next_account_info(account_info_iter)?;
+    let rent = &Rent::from_account_info(rent_info)?;
+    let token_program_id = next_account_info(account_info_iter)?;
+    assert_rent_exempt(rent, reserve_info)?;
+    let mut reserve = assert_uninitialized::<Reserve>(reserve_info)?;
+    if reserve_info.owner != program_id {
+        msg!("Reserve provided is not owned by the lending program");
+        return Err(LendingError::InvalidAccountOwner.into());
+    }
+    if reserve_liquidity_supply_info.key == source_liquidity_info.key {
+        msg!("Reserve liquidity supply cannot be used as the source liquidity provided");
+        return Err(LendingError::InvalidAccountInput.into());
+    }
+    let lending_market = LendingMarket::unpack(&lending_market_info.data.borrow())?;
+    if lending_market_info.owner != program_id {
+        msg!("Lending market provided is not owned by the lending program");
+        return Err(LendingError::InvalidAccountOwner.into());
+    }
+    if &lending_market.token_program_id != token_program_id.key {
+        msg!("Lending market token program does not match the token program provided");
+        return Err(LendingError::InvalidTokenProgram.into());
+    }
+    if &lending_market.owner != lending_market_owner_info.key {
+        msg!("Lending market owner does not match the lending market owner provided");
+        return Err(LendingError::InvalidMarketOwner.into());
+    }
+    if !lending_market_owner_info.is_signer {
+        msg!("Lending market owner provided must be a signer");
+        return Err(LendingError::InvalidSigner.into());
+    }
+
+    if &lending_market.oracle_program_id != pyth_product_info.owner {
+        msg!("Pyth product account provided is not owned by the lending market oracle program");
+        return Err(LendingError::InvalidOracleConfig.into());
+    }
+    if &lending_market.oracle_program_id != pyth_price_info.owner {
+        msg!("Pyth price account provided is not owned by the lending market oracle program");
+        return Err(LendingError::InvalidOracleConfig.into());
+    }
+    let pyth_product_data = pyth_product_info.try_borrow_data()?;
+    let pyth_product = pyth::load::<pyth::Product>(&pyth_product_data)
+        .map_err(|_| ProgramError::InvalidAccountData)?;
+    if pyth_product.magic != pyth::MAGIC {
+        msg!("Pyth product account provided is not a valid Pyth account");
+        return Err(LendingError::InvalidOracleConfig.into());
+    }
+    if pyth_product.ver != pyth::VERSION_2 {
+        msg!("Pyth product account provided has a different version than expected");
+        return Err(LendingError::InvalidOracleConfig.into());
+    }
+    if pyth_product.atype != pyth::AccountType::Product as u32 {
+        msg!("Pyth product account provided is not a valid Pyth product account");
+        return Err(LendingError::InvalidOracleConfig.into());
+    }
+    let pyth_price_pubkey_bytes: &[u8; 32] = pyth_price_info
+        .key
+        .as_ref()
+        .try_into()
+        .map_err(|_| LendingError::InvalidAccountInput)?;
+    if &pyth_product.px_acc.val != pyth_price_pubkey_bytes {
+        msg!("Pyth product price account does not match the Pyth price provided");
+        return Err(LendingError::InvalidOracleConfig.into());
+    }
+    let quote_currency = get_pyth_product_quote_currency(pyth_product)?;
+    if lending_market.quote_currency != quote_currency {
+        msg!("Lending market quote currency does not match the oracle quote currency");
+        return Err(LendingError::InvalidOracleConfig.into());
+    }
+
+    let market_price = get_pyth_price(pyth_price_info, clock)?;
+    let authority_signer_seeds = &[
+        lending_market_info.key.as_ref(),
+        &[lending_market.bump_seed],
+    ];
+    let lending_market_authority_pubkey =
+        Pubkey::create_program_address(authority_signer_seeds, program_id)?;
+    if &lending_market_authority_pubkey != lending_market_authority_info.key {
+        msg!(
+            "Derived lending market authority does not match the lending market authority provided"
+        );
+        return Err(LendingError::InvalidMarketAuthority.into());
+    }
+
+    let reserve_liquidity_mint = unpack_mint(&reserve_liquidity_mint_info.data.borrow())?;
+    if reserve_liquidity_mint_info.owner != token_program_id.key {
+        msg!("Reserve liquidity mint is not owned by the token program provided");
+        return Err(LendingError::InvalidTokenOwner.into());
+    }
+    reserve.init(InitReserveParams {
+        current_slot: clock.slot,
+        lending_market: *lending_market_info.key,
+        liquidity: ReserveLiquidity::new(NewReserveLiquidityParams {
+            mint_pubkey: *reserve_liquidity_mint_info.key,
+            mint_decimals: reserve_liquidity_mint.decimals,
+            supply_pubkey: *reserve_liquidity_supply_info.key,
+            fee_receiver: *reserve_liquidity_fee_receiver_info.key,
+            oracle_pubkey: *pyth_price_info.key,
+            market_price,
+        }),
+        collateral: ReserveCollateral::new(NewReserveCollateralParams {
+            mint_pubkey: *reserve_collateral_mint_info.key,
+            supply_pubkey: *reserve_collateral_supply_info.key,
+        }),
+        config,
+    });
+    let collateral_amount = reserve.deposit_liquidity(liquidity_amount)?;
+    Reserve::pack(reserve, &mut reserve_info.data.borrow_mut())?;
+    spl_token_init_account(TokenInitializeAccountParams {
+        account: reserve_liquidity_supply_info.clone(),
+        mint: reserve_liquidity_mint_info.clone(),
+        owner: lending_market_authority_info.clone(),
+        rent: rent_info.clone(),
+        token_program: token_program_id.clone(),
+    })?;
+
+    spl_token_init_account(TokenInitializeAccountParams {
+        account: reserve_liquidity_fee_receiver_info.clone(),
+        mint: reserve_liquidity_mint_info.clone(),
+        owner: lending_market_authority_info.clone(),
+        rent: rent_info.clone(),
+        token_program: token_program_id.clone(),
+    })?;
+
+    spl_token_init_mint(TokenInitializeMintParams {
+        mint: reserve_collateral_mint_info.clone(),
+        authority: lending_market_authority_info.key,
+        rent: rent_info.clone(),
+        decimals: reserve_liquidity_mint.decimals,
+        token_program: token_program_id.clone(),
+    })?;
+
+    spl_token_init_account(TokenInitializeAccountParams {
+        account: reserve_collateral_supply_info.clone(),
+        mint: reserve_collateral_mint_info.clone(),
+        owner: lending_market_authority_info.clone(),
+        rent: rent_info.clone(),
+        token_program: token_program_id.clone(),
+    })?;
+
+    spl_token_init_account(TokenInitializeAccountParams {
+        account: destination_collateral_info.clone(),
+        mint: reserve_collateral_mint_info.clone(),
+        owner: user_transfer_authority_info.clone(),
+        rent: rent_info.clone(),
+        token_program: token_program_id.clone(),
+    })?;
+
+    spl_token_transfer(TokenTransferParams {
+        source: source_liquidity_info.clone(),
+        destination: reserve_liquidity_supply_info.clone(),
+        amount: liquidity_amount,
+        authority: user_transfer_authority_info.clone(),
+        authority_signer_seeds: &[],
+        token_program: token_program_id.clone(),
+    })?;
+
+    spl_token_mint_to(TokenMintToParams {
+        mint: reserve_collateral_mint_info.clone(),
+        destination: destination_collateral_info.clone(),
+        amount: collateral_amount,
+        authority: lending_market_authority_info.clone(),
+        authority_signer_seeds,
+        token_program: token_program_id.clone(),
+    })?;
     Ok(())
 }
 
@@ -122,7 +311,6 @@ fn process_set_lending_market_owner(
     new_owner: Pubkey,
     accounts: &[AccountInfo],
 ) -> ProgramResult {
-   
     let account_info_iter = &mut accounts.iter();
     let lending_market_info = next_account_info(account_info_iter)?;
     let lending_market_owner_info = next_account_info(account_info_iter)?;
@@ -152,4 +340,281 @@ impl PrintProgramError for LendingError {
     {
         msg!(&self.to_string());
     }
+}
+
+fn get_pyth_product_quote_currency(pyth_product: &pyth::Product) -> Result<[u8; 32], ProgramError> {
+    // 1 byte for key length
+    // N bytes for key content
+    // 1 byte for value length
+    // M bytes for value content
+    const LEN: usize = 14;
+    const KEY: &[u8; LEN] = b"quote_currency";
+
+    let mut start = 0;
+    while start < pyth::PROD_ATTR_SIZE {
+        let mut length = pyth_product.attr[start] as usize;
+        start += 1;
+
+        if length == LEN {
+            let mut end = start + length;
+            if end > pyth::PROD_ATTR_SIZE {
+                msg!("Pyth product attribute key length too long");
+                return Err(LendingError::InvalidOracleConfig.into());
+            }
+
+            let key = &pyth_product.attr[start..end];
+            if key == KEY {
+                start += length;
+                length = pyth_product.attr[start] as usize;
+                start += 1;
+
+                end = start + length;
+                if length > 32 || end > pyth::PROD_ATTR_SIZE {
+                    msg!("Pyth product quote currency value too long");
+                    return Err(LendingError::InvalidOracleConfig.into());
+                }
+
+                let mut value = [0u8; 32];
+                value[0..length].copy_from_slice(&pyth_product.attr[start..end]);
+                return Ok(value);
+            }
+        }
+
+        start += length;
+        start += 1 + pyth_product.attr[start] as usize;
+    }
+
+    msg!("Pyth product quote currency not found");
+    Err(LendingError::InvalidOracleConfig.into())
+}
+
+fn get_pyth_price(pyth_price_info: &AccountInfo, clock: &Clock) -> Result<Decimal, ProgramError> {
+    const STALE_AFTER_SLOTS_ELAPSED: u64 = 5;
+    let pyth_price_data = pyth_price_info.try_borrow_data()?;
+    let pyth_price = pyth::load::<pyth::Price>(&pyth_price_data)
+        .map_err(|_| ProgramError::InvalidAccountData)?;
+
+    if pyth_price.ptype != pyth::PriceType::Price {
+        msg!("Oracle price type is invalid");
+        return Err(LendingError::InvalidOracleConfig.into());
+    }
+
+    if pyth_price.agg.status != pyth::PriceStatus::Trading {
+        msg!("Oracle price status is invalid");
+        return Err(LendingError::InvalidOracleConfig.into());
+    }
+
+    let slots_elapsed = clock
+        .slot
+        .checked_sub(pyth_price.valid_slot)
+        .ok_or(LendingError::MathOverflow)?;
+    if slots_elapsed >= STALE_AFTER_SLOTS_ELAPSED {
+        msg!("Oracle price is stale");
+        return Err(LendingError::InvalidOracleConfig.into());
+    }
+
+    let price: u64 = pyth_price.agg.price.try_into().map_err(|_| {
+        msg!("Oracle price cannot be negative");
+        LendingError::InvalidOracleConfig
+    })?;
+
+    let market_price = if pyth_price.expo >= 0 {
+        let exponent = pyth_price
+            .expo
+            .try_into()
+            .map_err(|_| LendingError::MathOverflow)?;
+        let zeros = 10u64
+            .checked_pow(exponent)
+            .ok_or(LendingError::MathOverflow)?;
+        Decimal::from(price).try_mul(zeros)?
+    } else {
+        let exponent = pyth_price
+            .expo
+            .checked_abs()
+            .ok_or(LendingError::MathOverflow)?
+            .try_into()
+            .map_err(|_| LendingError::MathOverflow)?;
+        let decimals = 10u64
+            .checked_pow(exponent)
+            .ok_or(LendingError::MathOverflow)?;
+        Decimal::from(price).try_div(decimals)?
+    };
+
+    Ok(market_price)
+}
+
+#[inline(always)]
+fn spl_token_init_account(params: TokenInitializeAccountParams<'_>) -> ProgramResult {
+    let TokenInitializeAccountParams {
+        account,
+        mint,
+        owner,
+        rent,
+        token_program,
+    } = params;
+    let ix = spl_token::instruction::initialize_account(
+        token_program.key,
+        account.key,
+        mint.key,
+        owner.key,
+    )?;
+    invoke(&ix, &[account, mint, owner, rent, token_program])
+        .map_err(|_| LendingError::TokenInitializeAccountFailed.into())
+}
+#[inline(always)]
+fn spl_token_init_mint(params: TokenInitializeMintParams<'_, '_>) -> ProgramResult {
+    let TokenInitializeMintParams {
+        mint,
+        rent,
+        authority,
+        token_program,
+        decimals,
+    } = params;
+    let ix = spl_token::instruction::initialize_mint(
+        token_program.key,
+        mint.key,
+        authority,
+        None,
+        decimals,
+    )?;
+    let result = invoke(&ix, &[mint, rent, token_program]);
+    result.map_err(|_| LendingError::TokenInitializeMintFailed.into())
+}
+
+/// Issue a spl_token `Transfer` instruction.
+#[inline(always)]
+fn spl_token_transfer(params: TokenTransferParams<'_, '_>) -> ProgramResult {
+    let TokenTransferParams {
+        source,
+        destination,
+        authority,
+        token_program,
+        amount,
+        authority_signer_seeds,
+    } = params;
+    let result = invoke_optionally_signed(
+        &spl_token::instruction::transfer(
+            token_program.key,
+            source.key,
+            destination.key,
+            authority.key,
+            &[],
+            amount,
+        )?,
+        &[source, destination, authority, token_program],
+        authority_signer_seeds,
+    );
+    result.map_err(|_| LendingError::TokenTransferFailed.into())
+}
+
+/// Issue a spl_token `MintTo` instruction.
+fn spl_token_mint_to(params: TokenMintToParams<'_, '_>) -> ProgramResult {
+    let TokenMintToParams {
+        mint,
+        destination,
+        authority,
+        token_program,
+        amount,
+        authority_signer_seeds,
+    } = params;
+    let result = invoke_optionally_signed(
+        &spl_token::instruction::mint_to(
+            token_program.key,
+            mint.key,
+            destination.key,
+            authority.key,
+            &[],
+            amount,
+        )?,
+        &[mint, destination, authority, token_program],
+        authority_signer_seeds,
+    );
+    result.map_err(|_| LendingError::TokenMintToFailed.into())
+}
+
+/// Issue a spl_token `Burn` instruction.
+#[inline(always)]
+fn spl_token_burn(params: TokenBurnParams<'_, '_>) -> ProgramResult {
+    let TokenBurnParams {
+        mint,
+        source,
+        authority,
+        token_program,
+        amount,
+        authority_signer_seeds,
+    } = params;
+    let result = invoke_optionally_signed(
+        &spl_token::instruction::burn(
+            token_program.key,
+            source.key,
+            mint.key,
+            authority.key,
+            &[],
+            amount,
+        )?,
+        &[source, mint, authority, token_program],
+        authority_signer_seeds,
+    );
+    result.map_err(|_| LendingError::TokenBurnFailed.into())
+}
+
+struct TokenInitializeAccountParams<'a> {
+    account: AccountInfo<'a>,
+    mint: AccountInfo<'a>,
+    owner: AccountInfo<'a>,
+    rent: AccountInfo<'a>,
+    token_program: AccountInfo<'a>,
+}
+
+struct TokenInitializeMintParams<'a: 'b, 'b> {
+    mint: AccountInfo<'a>,
+    rent: AccountInfo<'a>,
+    authority: &'b Pubkey,
+    decimals: u8,
+    token_program: AccountInfo<'a>,
+}
+
+struct TokenMintToParams<'a: 'b, 'b> {
+    mint: AccountInfo<'a>,
+    destination: AccountInfo<'a>,
+    amount: u64,
+    authority: AccountInfo<'a>,
+    authority_signer_seeds: &'b [&'b [u8]],
+    token_program: AccountInfo<'a>,
+}
+
+struct TokenTransferParams<'a: 'b, 'b> {
+    source: AccountInfo<'a>,
+    destination: AccountInfo<'a>,
+    amount: u64,
+    authority: AccountInfo<'a>,
+    authority_signer_seeds: &'b [&'b [u8]],
+    token_program: AccountInfo<'a>,
+}
+
+struct TokenBurnParams<'a: 'b, 'b> {
+    mint: AccountInfo<'a>,
+    source: AccountInfo<'a>,
+    amount: u64,
+    authority: AccountInfo<'a>,
+    authority_signer_seeds: &'b [&'b [u8]],
+    token_program: AccountInfo<'a>,
+}
+
+#[inline(always)]
+fn invoke_optionally_signed(
+    ix: &Instruction,
+    accounts: &[AccountInfo],
+    authority_signer_seeds: &[&[u8]],
+) -> ProgramResult {
+    if authority_signer_seeds.is_empty() {
+        invoke(ix, accounts)
+    } else {
+        invoke_signed(ix, accounts, &[authority_signer_seeds])
+    }
+}
+
+/// Unpacks a spl_token `Mint`.
+fn unpack_mint(data: &[u8]) -> Result<Mint, LendingError> {
+    Mint::unpack(data).map_err(|_| LendingError::InvalidTokenMint)
 }
