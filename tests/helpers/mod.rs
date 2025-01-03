@@ -9,7 +9,7 @@ use {
         program_pack::Pack,
         pubkey::Pubkey,
         signature::{read_keypair_file, Keypair},
-        signer::{keypair, Signer},
+        signer::Signer,
         system_instruction::create_account,
         transaction::{Transaction, TransactionError},
     },
@@ -22,7 +22,10 @@ use {
         math::{Decimal, Rate, TryAdd, TryMul},
         pyth,
         state::{
-            InitLendingMarketParams, InitObligationParams, InitReserveParams, LendingMarket, NewReserveCollateralParams, NewReserveLiquidityParams, Obligation, ObligationCollateral, ObligationLiquidity, Reserve, ReserveCollateral, ReserveConfig, ReserveFees, ReserveLiquidity, INITIAL_COLLATERAL_RATIO, PROGRAM_VERSION
+            InitLendingMarketParams, InitObligationParams, InitReserveParams, LendingMarket,
+            NewReserveCollateralParams, NewReserveLiquidityParams, Obligation,
+            ObligationCollateral, ObligationLiquidity, Reserve, ReserveCollateral, ReserveConfig,
+            ReserveFees, ReserveLiquidity, INITIAL_COLLATERAL_RATIO, PROGRAM_VERSION,
         },
     },
     std::str::FromStr,
