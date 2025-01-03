@@ -22,9 +22,7 @@ use {
         math::{Decimal, Rate, TryAdd, TryMul},
         pyth,
         state::{
-            InitLendingMarketParams, InitReserveParams, LendingMarket, NewReserveCollateralParams,
-            NewReserveLiquidityParams, Obligation, Reserve, ReserveCollateral, ReserveConfig,
-            ReserveFees, ReserveLiquidity, INITIAL_COLLATERAL_RATIO, PROGRAM_VERSION,
+            InitLendingMarketParams, InitObligationParams, InitReserveParams, LendingMarket, NewReserveCollateralParams, NewReserveLiquidityParams, Obligation, ObligationCollateral, ObligationLiquidity, Reserve, ReserveCollateral, ReserveConfig, ReserveFees, ReserveLiquidity, INITIAL_COLLATERAL_RATIO, PROGRAM_VERSION
         },
     },
     std::str::FromStr,
@@ -908,6 +906,90 @@ impl TestObligation {
         assert_eq!(obligation.version, PROGRAM_VERSION);
         assert_eq!(obligation.lending_market, self.lending_market);
         assert_eq!(obligation.owner, self.owner);
-      
+    }
+}
+
+#[derive(Default)]
+pub struct AddObligationArgs<'a> {
+    pub deposits: &'a [(&'a TestReserve, u64)],
+    pub borrows: &'a [(&'a TestReserve, u64)],
+    pub mark_fresh: bool,
+    pub slots_elapsed: u64,
+}
+
+pub fn add_obligation(
+    test: &mut ProgramTest,
+    lending_market: &TestLendingMarket,
+    user_accounts_owner: &Keypair,
+    args: AddObligationArgs,
+) -> TestObligation {
+    let AddObligationArgs {
+        deposits,
+        borrows,
+        mark_fresh,
+        slots_elapsed,
+    } = args;
+    let obligation_keypair = Keypair::new();
+    let obligation_pubkey = obligation_keypair.pubkey();
+    let (obligation_deposits, test_deposits) = deposits
+        .iter()
+        .map(|(deposit_reserve, collateral_amount)| {
+            let mut collateral = ObligationCollateral::new(deposit_reserve.pubkey);
+            collateral.deposited_amount = *collateral_amount;
+
+            (
+                collateral,
+                TestObligationCollateral {
+                    obligation_pubkey,
+                    deposit_reserve: deposit_reserve.pubkey,
+                    deposited_amount: *collateral_amount,
+                },
+            )
+        })
+        .unzip();
+    let (obligation_borrows, test_borrows) = borrows
+        .iter()
+        .map(|(borrow_reserve, liquidity_amount)| {
+            let borrowed_amount_wads = Decimal::from(*liquidity_amount);
+
+            let mut liquidity = ObligationLiquidity::new(borrow_reserve.pubkey);
+            liquidity.borrowed_amount_wads = borrowed_amount_wads;
+
+            (
+                liquidity,
+                TestObligationLiquidity {
+                    obligation_pubkey,
+                    borrow_reserve: borrow_reserve.pubkey,
+                    borrowed_amount_wads,
+                },
+            )
+        })
+        .unzip();
+    let current_slot = slots_elapsed + 1;
+    let mut obligation = Obligation::new(InitObligationParams {
+        // intentionally wrapped to simulate elapsed slots
+        current_slot,
+        lending_market: lending_market.pubkey,
+        owner: user_accounts_owner.pubkey(),
+        deposits: obligation_deposits,
+        borrows: obligation_borrows,
+    });
+    if mark_fresh {
+        obligation.last_update.update_slot(current_slot);
+    }
+
+    test.add_packable_account(
+        obligation_pubkey,
+        u32::MAX as u64,
+        &obligation,
+        &spl_token_lending::id(),
+    );
+
+    TestObligation {
+        pubkey: obligation_pubkey,
+        lending_market: lending_market.pubkey,
+        owner: user_accounts_owner.pubkey(),
+        deposits: test_deposits,
+        borrows: test_borrows,
     }
 }

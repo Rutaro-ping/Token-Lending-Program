@@ -139,6 +139,48 @@ pub enum LendingInstruction {
     ///   4. `[]` Rent sysvar.
     ///   5. `[]` Token program id.
     InitObligation,
+    // 7
+    /// Refresh an obligation's accrued interest and collateral and liquidity
+    /// prices. Requires refreshed reserves, as all obligation collateral
+    /// deposit reserves in order, followed by all liquidity borrow reserves
+    /// in order.
+    ///
+    /// Accounts expected by this instruction:
+    ///
+    ///   0. `[writable]` Obligation account.
+    ///   1. `[]` Clock sysvar.
+    ///   2. .. `[]` Collateral deposit reserve accounts - refreshed, all, in
+    ///      order.
+    ///   3. .. `[]` Liquidity borrow reserve accounts - refreshed, all, in
+    ///      order.
+    RefreshObligation,
+    // 10
+    /// Borrow liquidity from a reserve by depositing collateral tokens.
+    /// Requires a refreshed obligation and reserve.
+    ///
+    /// Accounts expected by this instruction:
+    ///
+    ///   0. `[writable]` Source borrow reserve liquidity supply SPL Token
+    ///      account.
+    ///   1. `[writable]` Destination liquidity token account. Minted by borrow
+    ///      reserve liquidity mint.
+    ///   2. `[writable]` Borrow reserve account - refreshed.
+    ///   3. `[writable]` Borrow reserve liquidity fee receiver account. Must be
+    ///      the fee account specified at InitReserve.
+    ///   4. `[writable]` Obligation account - refreshed.
+    ///   5. `[]` Lending market account.
+    ///   6. `[]` Derived lending market authority.
+    ///   7. `[signer]` Obligation owner.
+    ///   8. `[]` Clock sysvar.
+    ///   9. `[]` Token program id.
+    ///   10. `[optional, writable]` Host fee receiver account.
+    BorrowObligationLiquidity {
+        /// Amount of liquidity to borrow - u64::MAX for 100% of borrowing power
+        liquidity_amount: u64,
+        /// Minimum amount of liquidity to receive, if borrowing 100% of
+        /// borrowing power
+        slippage_limit: u64,
+    },
 }
 
 impl LendingInstruction {
@@ -168,6 +210,15 @@ impl LendingInstruction {
                 }
             }
             6 => Self::InitObligation,
+            7 => Self::RefreshObligation,
+            10 => {
+                let (liquidity_amount, rest) = Self::unpack_u64(rest)?;
+                let (slippage_limit, _rest) = Self::unpack_u64(rest).unwrap_or((0, &[]));
+                Self::BorrowObligationLiquidity {
+                    liquidity_amount,
+                    slippage_limit,
+                }
+            }
 
             _ => unreachable!(),
         })
@@ -175,6 +226,7 @@ impl LendingInstruction {
 
     pub fn pack(&self) -> Vec<u8> {
         let mut buf = Vec::with_capacity(size_of::<Self>());
+        msg!("packing instruction: {:?}", self);
         match *self {
             LendingInstruction::InitLendingMarket {
                 owner,
@@ -199,6 +251,18 @@ impl LendingInstruction {
             Self::InitObligation => {
                 buf.push(6);
             }
+            Self::RefreshObligation => {
+                buf.push(7);
+            }
+            Self::BorrowObligationLiquidity {
+                liquidity_amount,
+                slippage_limit,
+            } => {
+                buf.push(10);
+                buf.extend_from_slice(&liquidity_amount.to_le_bytes());
+                buf.extend_from_slice(&slippage_limit.to_le_bytes());
+            }
+
             _ => unreachable!(),
         }
 
@@ -409,6 +473,73 @@ pub fn init_obligation(
             AccountMeta::new_readonly(spl_token::id(), false),
         ],
         data: LendingInstruction::InitObligation.pack(),
+    }
+}
+pub fn refresh_obligation(
+    program_id: Pubkey,
+    obligation_pubkey: Pubkey,
+    reserve_pubkeys: Vec<Pubkey>,
+) -> Instruction {
+    let mut accounts = vec![
+        AccountMeta::new(obligation_pubkey, false),
+        AccountMeta::new_readonly(sysvar::clock::id(), false),
+    ];
+    accounts.extend(
+        reserve_pubkeys
+            .into_iter()
+            .map(|pubkey| AccountMeta::new_readonly(pubkey, false)),
+    );
+
+    Instruction {
+        program_id,
+        accounts,
+        data: LendingInstruction::RefreshObligation.pack(),
+    }
+}
+
+/// Creates a 'BorrowObligationLiquidity' instruction.
+#[allow(clippy::too_many_arguments)]
+pub fn borrow_obligation_liquidity(
+    program_id: Pubkey,
+    liquidity_amount: u64,
+    slippage_limit: Option<u64>,
+    source_liquidity_pubkey: Pubkey,
+    destination_liquidity_pubkey: Pubkey,
+    borrow_reserve_pubkey: Pubkey,
+    borrow_reserve_liquidity_fee_receiver_pubkey: Pubkey,
+    obligation_pubkey: Pubkey,
+    lending_market_pubkey: Pubkey,
+    obligation_owner_pubkey: Pubkey,
+    host_fee_receiver_pubkey: Option<Pubkey>,
+) -> Instruction {
+    let (lending_market_authority_pubkey, _bump_seed) = Pubkey::find_program_address(
+        &[&lending_market_pubkey.to_bytes()[..PUBKEY_BYTES]],
+        &program_id,
+    );
+    let mut accounts = vec![
+        AccountMeta::new(source_liquidity_pubkey, false),
+        AccountMeta::new(destination_liquidity_pubkey, false),
+        AccountMeta::new(borrow_reserve_pubkey, false),
+        AccountMeta::new(borrow_reserve_liquidity_fee_receiver_pubkey, false),
+        AccountMeta::new(obligation_pubkey, false),
+        AccountMeta::new_readonly(lending_market_pubkey, false),
+        AccountMeta::new_readonly(lending_market_authority_pubkey, false),
+        AccountMeta::new_readonly(obligation_owner_pubkey, true),
+        AccountMeta::new_readonly(sysvar::clock::id(), false),
+        AccountMeta::new_readonly(spl_token::id(), false),
+    ];
+    if let Some(host_fee_receiver_pubkey) = host_fee_receiver_pubkey {
+        accounts.push(AccountMeta::new(host_fee_receiver_pubkey, false));
+    }
+    let slippage_limit = slippage_limit.unwrap_or(0);
+    Instruction {
+        program_id,
+        accounts,
+        data: LendingInstruction::BorrowObligationLiquidity {
+            liquidity_amount,
+            slippage_limit,
+        }
+        .pack(),
     }
 }
 
