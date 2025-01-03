@@ -167,6 +167,7 @@ impl LendingInstruction {
                     config,
                 }
             }
+            6 => Self::InitObligation,
 
             _ => unreachable!(),
         })
@@ -194,6 +195,9 @@ impl LendingInstruction {
                 buf.push(2);
                 buf.extend_from_slice(&liquidity_amount.to_le_bytes());
                 Self::extend_buffer_from_reserve_config(&mut buf, &config);
+            }
+            Self::InitObligation => {
+                buf.push(6);
             }
             _ => unreachable!(),
         }
@@ -383,6 +387,28 @@ pub fn init_reserve(
             config,
         }
         .pack(),
+    }
+}
+
+/// Creates an 'InitObligation' instruction.
+#[allow(clippy::too_many_arguments)]
+pub fn init_obligation(
+    program_id: Pubkey,
+    obligation_pubkey: Pubkey,
+    lending_market_pubkey: Pubkey,
+    obligation_owner_pubkey: Pubkey,
+) -> Instruction {
+    Instruction {
+        program_id,
+        accounts: vec![
+            AccountMeta::new(obligation_pubkey, false),
+            AccountMeta::new_readonly(lending_market_pubkey, false),
+            AccountMeta::new_readonly(obligation_owner_pubkey, true),
+            AccountMeta::new_readonly(sysvar::clock::id(), false),
+            AccountMeta::new_readonly(sysvar::rent::id(), false),
+            AccountMeta::new_readonly(spl_token::id(), false),
+        ],
+        data: LendingInstruction::InitObligation.pack(),
     }
 }
 

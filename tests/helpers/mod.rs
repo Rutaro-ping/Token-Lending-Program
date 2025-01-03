@@ -18,11 +18,13 @@ use {
         state::{Account as Token, AccountState, Mint},
     },
     spl_token_lending::{
-        instruction::{init_lending_market, init_reserve},
+        instruction::{init_lending_market, init_obligation, init_reserve},
         math::{Decimal, Rate, TryAdd, TryMul},
         pyth,
         state::{
-            InitLendingMarketParams, InitReserveParams, LendingMarket, NewReserveCollateralParams, NewReserveLiquidityParams, Obligation, Reserve, ReserveCollateral, ReserveConfig, ReserveFees, ReserveLiquidity, INITIAL_COLLATERAL_RATIO, PROGRAM_VERSION
+            InitLendingMarketParams, InitReserveParams, LendingMarket, NewReserveCollateralParams,
+            NewReserveLiquidityParams, Obligation, Reserve, ReserveCollateral, ReserveConfig,
+            ReserveFees, ReserveLiquidity, INITIAL_COLLATERAL_RATIO, PROGRAM_VERSION,
         },
     },
     std::str::FromStr,
@@ -881,6 +883,31 @@ impl TestObligation {
             ],
             Some(&payer.pubkey()),
         );
-        todo!()
+        let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+        transaction.sign(
+            &vec![payer, &obligation_keypair, user_accounts_owner],
+            recent_blockhash,
+        );
+        banks_client
+            .process_transaction(transaction)
+            .await
+            .map_err(|e| e.unwrap())?;
+
+        Ok(obligation)
+    }
+    pub async fn get_state(&self, banks_client: &mut BanksClient) -> Obligation {
+        let obligation: Account = banks_client
+            .get_account(self.pubkey)
+            .await
+            .unwrap()
+            .unwrap();
+        Pack::unpack(&obligation.data).unwrap()
+    }
+    pub async fn validate_state(&self, banks_client: &mut BanksClient) {
+        let obligation = self.get_state(banks_client).await;
+        assert_eq!(obligation.version, PROGRAM_VERSION);
+        assert_eq!(obligation.lending_market, self.lending_market);
+        assert_eq!(obligation.owner, self.owner);
+      
     }
 }

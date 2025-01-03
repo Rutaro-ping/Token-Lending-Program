@@ -5,8 +5,9 @@ use {
         math::{Decimal, TryDiv, TryMul},
         pyth,
         state::{
-            InitLendingMarketParams, InitReserveParams, LendingMarket, NewReserveCollateralParams,
-            NewReserveLiquidityParams, Reserve, ReserveCollateral, ReserveConfig, ReserveLiquidity,
+            InitLendingMarketParams, InitObligationParams, InitReserveParams, LendingMarket,
+            NewReserveCollateralParams, NewReserveLiquidityParams, Obligation, Reserve,
+            ReserveCollateral, ReserveConfig, ReserveLiquidity,
         },
     },
     num_traits::FromPrimitive,
@@ -51,6 +52,10 @@ pub fn process_instruction(
         } => {
             msg!("Instruction: Init Reserve");
             process_init_reserve(program_id, liquidity_amount, config, accounts)
+        }
+        LendingInstruction::InitObligation => {
+            msg!("Instruction: Init Obligation");
+            process_init_obligation(program_id, accounts)
         }
         _ => {
             msg!("Unsupported instruction");
@@ -281,6 +286,47 @@ fn process_init_reserve(
         authority_signer_seeds,
         token_program: token_program_id.clone(),
     })?;
+    Ok(())
+}
+#[inline(never)] // avoid stack frame limit
+fn process_init_obligation(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+    let account_info_iter = &mut accounts.iter();
+    let obligation_info = next_account_info(account_info_iter)?;
+    let lending_market_info = next_account_info(account_info_iter)?;
+    let obligation_owner_info = next_account_info(account_info_iter)?;
+    let clock = &Clock::from_account_info(next_account_info(account_info_iter)?)?;
+    let rent = &Rent::from_account_info(next_account_info(account_info_iter)?)?;
+    let token_program_id = next_account_info(account_info_iter)?;
+    assert_rent_exempt(rent, obligation_info)?;
+    let mut obligation = assert_uninitialized::<Obligation>(obligation_info)?;
+    let mut obligation = assert_uninitialized::<Obligation>(obligation_info)?;
+    if obligation_info.owner != program_id {
+        msg!("Obligation provided is not owned by the lending program");
+        return Err(LendingError::InvalidAccountOwner.into());
+    }
+
+    let lending_market = LendingMarket::unpack(&lending_market_info.data.borrow())?;
+    if lending_market_info.owner != program_id {
+        msg!("Lending market provided is not owned by the lending program");
+        return Err(LendingError::InvalidAccountOwner.into());
+    }
+    if &lending_market.token_program_id != token_program_id.key {
+        msg!("Lending market token program does not match the token program provided");
+        return Err(LendingError::InvalidTokenProgram.into());
+    }
+
+    if !obligation_owner_info.is_signer {
+        msg!("Obligation owner provided must be a signer");
+        return Err(LendingError::InvalidSigner.into());
+    }
+    obligation.init(InitObligationParams {
+        current_slot: clock.slot,
+        lending_market: *lending_market_info.key,
+        owner: *obligation_owner_info.key,
+        deposits: vec![],
+        borrows: vec![],
+    });
+    Obligation::pack(obligation, &mut obligation_info.data.borrow_mut())?;
     Ok(())
 }
 
