@@ -226,7 +226,6 @@ impl LendingInstruction {
 
     pub fn pack(&self) -> Vec<u8> {
         let mut buf = Vec::with_capacity(size_of::<Self>());
-        msg!("packing instruction: {:?}", self);
         match *self {
             LendingInstruction::InitLendingMarket {
                 owner,

@@ -18,6 +18,19 @@ use {
     },
 };
 
+/// Calculate borrow result
+#[derive(Debug)]
+pub struct CalculateBorrowResult {
+    /// Total amount of borrow including fees
+    pub borrow_amount: Decimal,
+    /// Borrow amount portion of total amount
+    pub receive_amount: u64,
+    /// Loan origination fee
+    pub borrow_fee: u64,
+    /// Host fee portion of origination fee
+    pub host_fee: u64,
+}
+
 /// Reserve configuration values
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct ReserveConfig {
@@ -290,6 +303,59 @@ impl Reserve {
                 .compound_interest(current_borrow_rate, slots_elapsed)?;
         }
         Ok(())
+    }
+
+    /// Borrow liquidity up to a maximum market value
+    pub fn calculate_borrow(
+        &self,
+        amount_to_borrow: u64,
+        max_borrow_value: Decimal,
+    ) -> Result<CalculateBorrowResult, ProgramError> {
+        // @TODO: add lookup table https://git.io/JOCYq
+        let decimals = 10u64
+            .checked_pow(self.liquidity.mint_decimals as u32)
+            .ok_or(LendingError::MathOverflow)?;
+        if amount_to_borrow == u64::MAX {
+            let borrow_amount = max_borrow_value
+                .try_mul(decimals)?
+                .try_div(self.liquidity.market_price)?
+                .min(self.liquidity.available_amount.into());
+            let (borrow_fee, host_fee) = self
+                .config
+                .fees
+                .calculate_borrow_fees(borrow_amount, FeeCalculation::Inclusive)?;
+            let receive_amount = borrow_amount
+                .try_floor_u64()?
+                .checked_sub(borrow_fee)
+                .ok_or(LendingError::MathOverflow)?;
+            Ok(CalculateBorrowResult {
+                borrow_amount,
+                receive_amount,
+                borrow_fee,
+                host_fee,
+            })
+        } else {
+            let receive_amount = amount_to_borrow;
+            let borrow_amount = Decimal::from(receive_amount);
+            let (borrow_fee, host_fee) = self
+                .config
+                .fees
+                .calculate_borrow_fees(borrow_amount, FeeCalculation::Exclusive)?;
+            let borrow_amount = borrow_amount.try_add(borrow_fee.into())?;
+            let borrow_value = borrow_amount
+                .try_mul(self.liquidity.market_price)?
+                .try_div(decimals)?;
+            if borrow_value > max_borrow_value {
+                msg!("Borrow value cannot exceed maximum borrow value");
+                return Err(LendingError::BorrowTooLarge.into());
+            }
+            Ok(CalculateBorrowResult {
+                borrow_amount,
+                receive_amount,
+                borrow_fee,
+                host_fee,
+            })
+        }
     }
 }
 

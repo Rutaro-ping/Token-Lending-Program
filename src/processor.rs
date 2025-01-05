@@ -5,9 +5,7 @@ use {
         math::{Decimal, Rate, TryAdd, TryDiv, TryMul},
         pyth,
         state::{
-            InitLendingMarketParams, InitObligationParams, InitReserveParams, LendingMarket,
-            NewReserveCollateralParams, NewReserveLiquidityParams, Obligation, Reserve,
-            ReserveCollateral, ReserveConfig, ReserveLiquidity,
+            CalculateBorrowResult, InitLendingMarketParams, InitObligationParams, InitReserveParams, LendingMarket, NewReserveCollateralParams, NewReserveLiquidityParams, Obligation, Reserve, ReserveCollateral, ReserveConfig, ReserveLiquidity
         },
     },
     num_traits::FromPrimitive,
@@ -45,6 +43,10 @@ pub fn process_instruction(
         LendingInstruction::SetLendingMarketOwner { new_owner } => {
             msg!("Instruction: Set Lending Market Owner");
             process_set_lending_market_owner(program_id, new_owner, accounts)
+        }
+        LendingInstruction::DepositReserveLiquidity { liquidity_amount } => {
+            msg!("Instruction: Deposit Reserve Liquidity");
+            process_deposit_reserve_liquidity(program_id, liquidity_amount, accounts)
         }
         LendingInstruction::InitReserve {
             liquidity_amount,
@@ -111,6 +113,73 @@ fn process_init_lending_market(
     Ok(())
 }
 
+fn process_deposit_reserve_liquidity(
+    program_id: &Pubkey,
+    liquidity_amount: u64,
+    accounts: &[AccountInfo],
+) -> ProgramResult {
+    if liquidity_amount == 0 {
+        msg!("Liquidity amount provided cannot be zero");
+        return Err(LendingError::InvalidAmount.into());
+    }
+
+    let account_info_iter = &mut accounts.iter();
+    let source_liquidity_info = next_account_info(account_info_iter)?;
+    let destination_collateral_info = next_account_info(account_info_iter)?;
+    let reserve_info = next_account_info(account_info_iter)?;
+    let reserve_liquidity_supply_info = next_account_info(account_info_iter)?;
+    let reserve_collateral_mint_info = next_account_info(account_info_iter)?;
+    let lending_market_info = next_account_info(account_info_iter)?;
+    let lending_market_authority_info = next_account_info(account_info_iter)?;
+    let user_transfer_authority_info = next_account_info(account_info_iter)?;
+    let clock = &Clock::from_account_info(next_account_info(account_info_iter)?)?;
+    let token_program_id = next_account_info(account_info_iter)?;
+
+    let lending_market = LendingMarket::unpack(&lending_market_info.data.borrow())?;
+    if lending_market_info.owner != program_id {
+        msg!("Lending market provided is not owned by the lending program");
+        return Err(LendingError::InvalidAccountOwner.into());
+    }
+    if &lending_market.token_program_id != token_program_id.key {
+        msg!("Lending market token program does not match the token program provided");
+        return Err(LendingError::InvalidTokenProgram.into());
+    }
+    let mut reserve = Reserve::unpack(&reserve_info.data.borrow())?;
+    if reserve_info.owner != program_id {
+        msg!("Reserve provided is not owned by the lending program");
+        return Err(LendingError::InvalidAccountOwner.into());
+    }
+    if &reserve.lending_market != lending_market_info.key {
+        msg!("Reserve lending market does not match the lending market provided");
+        return Err(LendingError::InvalidAccountInput.into());
+    }
+    if &reserve.liquidity.supply_pubkey != reserve_liquidity_supply_info.key {
+        msg!("Reserve liquidity supply does not match the reserve liquidity supply provided");
+        return Err(LendingError::InvalidAccountInput.into());
+    }
+    if &reserve.collateral.mint_pubkey != reserve_collateral_mint_info.key {
+        msg!("Reserve collateral mint does not match the reserve collateral mint provided");
+        return Err(LendingError::InvalidAccountInput.into());
+    }
+    if &reserve.liquidity.supply_pubkey == source_liquidity_info.key {
+        msg!("Reserve liquidity supply cannot be used as the source liquidity provided");
+        return Err(LendingError::InvalidAccountInput.into());
+    }
+    if &reserve.collateral.supply_pubkey == destination_collateral_info.key {
+        msg!("Reserve collateral supply cannot be used as the destination collateral provided");
+        return Err(LendingError::InvalidAccountInput.into());
+    }
+    if reserve.last_update.is_stale(clock.slot)? {
+        msg!("Reserve is stale and must be refreshed in the current slot");
+        return Err(LendingError::ReserveStale.into());
+    }
+    let authority_signer_seeds = &[
+        lending_market_info.key.as_ref(),
+        &[lending_market.bump_seed],
+    ];
+    Ok(())
+}
+
 fn process_refresh_obligation(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let account_info_iter = &mut accounts.iter().peekable();
     let obligation_info = next_account_info(account_info_iter)?;
@@ -124,7 +193,6 @@ fn process_refresh_obligation(program_id: &Pubkey, accounts: &[AccountInfo]) -> 
     let mut borrowed_value = Decimal::zero();
     let mut allowed_borrow_value = Decimal::zero();
     let mut unhealthy_borrow_value = Decimal::zero();
-    msg!("obligation: {:#?}", obligation);
     for (index, collateral) in obligation.deposits.iter_mut().enumerate() {
         let deposit_reserve_info = next_account_info(account_info_iter)?;
         if deposit_reserve_info.owner != program_id {
@@ -589,76 +657,76 @@ fn process_borrow_obligation_liquidity(
         return Err(LendingError::InvalidMarketAuthority.into());
     }
 
-    // let remaining_borrow_value = obligation.remaining_borrow_value()?;
-    // if remaining_borrow_value == Decimal::zero() {
-    //     msg!("Remaining borrow value is zero");
-    //     return Err(LendingError::BorrowTooLarge.into());
-    // }
+    let remaining_borrow_value = obligation.remaining_borrow_value()?;
+    if remaining_borrow_value == Decimal::zero() {
+        msg!("Remaining borrow value is zero");
+        return Err(LendingError::BorrowTooLarge.into());
+    }
 
-    // let CalculateBorrowResult {
-    //     borrow_amount,
-    //     receive_amount,
-    //     borrow_fee,
-    //     host_fee,
-    // } = borrow_reserve.calculate_borrow(liquidity_amount, remaining_borrow_value)?;
+    let CalculateBorrowResult {
+        borrow_amount,
+        receive_amount,
+        borrow_fee,
+        host_fee,
+    } = borrow_reserve.calculate_borrow(liquidity_amount, remaining_borrow_value)?;
 
-    // if receive_amount == 0 {
-    //     msg!("Borrow amount is too small to receive liquidity after fees");
-    //     return Err(LendingError::BorrowTooSmall.into());
-    // }
+    if receive_amount == 0 {
+        msg!("Borrow amount is too small to receive liquidity after fees");
+        return Err(LendingError::BorrowTooSmall.into());
+    }
 
-    // if liquidity_amount == u64::MAX && receive_amount < slippage_limit {
-    //     msg!("Received liquidity would be smaller than the desired slippage limit");
-    //     return Err(LendingError::ExceededSlippage.into());
-    // }
+    if liquidity_amount == u64::MAX && receive_amount < slippage_limit {
+        msg!("Received liquidity would be smaller than the desired slippage limit");
+        return Err(LendingError::ExceededSlippage.into());
+    }
 
-    // borrow_reserve.liquidity.borrow(borrow_amount)?;
-    // borrow_reserve.last_update.mark_stale();
-    // Reserve::pack(borrow_reserve, &mut borrow_reserve_info.data.borrow_mut())?;
+    borrow_reserve.liquidity.borrow(borrow_amount)?;
+    borrow_reserve.last_update.mark_stale();
+    Reserve::pack(borrow_reserve, &mut borrow_reserve_info.data.borrow_mut())?;
 
-    // obligation
-    //     .find_or_add_liquidity_to_borrows(*borrow_reserve_info.key)?
-    //     .borrow(borrow_amount)?;
+    obligation
+        .find_or_add_liquidity_to_borrows(*borrow_reserve_info.key)?
+        .borrow(borrow_amount)?;
 
-    // obligation.last_update.mark_stale();
-    // Obligation::pack(obligation, &mut obligation_info.data.borrow_mut())?;
+    obligation.last_update.mark_stale();
+    Obligation::pack(obligation, &mut obligation_info.data.borrow_mut())?;
 
-    // let mut owner_fee = borrow_fee;
-    // if let Ok(host_fee_receiver_info) = next_account_info(account_info_iter) {
-    //     if host_fee > 0 {
-    //         owner_fee = owner_fee
-    //             .checked_sub(host_fee)
-    //             .ok_or(LendingError::MathOverflow)?;
+    let mut owner_fee = borrow_fee;
+    if let Ok(host_fee_receiver_info) = next_account_info(account_info_iter) {
+        if host_fee > 0 {
+            owner_fee = owner_fee
+                .checked_sub(host_fee)
+                .ok_or(LendingError::MathOverflow)?;
 
-    //         spl_token_transfer(TokenTransferParams {
-    //             source: source_liquidity_info.clone(),
-    //             destination: host_fee_receiver_info.clone(),
-    //             amount: host_fee,
-    //             authority: lending_market_authority_info.clone(),
-    //             authority_signer_seeds,
-    //             token_program: token_program_id.clone(),
-    //         })?;
-    //     }
-    // }
-    // if owner_fee > 0 {
-    //     spl_token_transfer(TokenTransferParams {
-    //         source: source_liquidity_info.clone(),
-    //         destination: borrow_reserve_liquidity_fee_receiver_info.clone(),
-    //         amount: owner_fee,
-    //         authority: lending_market_authority_info.clone(),
-    //         authority_signer_seeds,
-    //         token_program: token_program_id.clone(),
-    //     })?;
-    // }
+            spl_token_transfer(TokenTransferParams {
+                source: source_liquidity_info.clone(),
+                destination: host_fee_receiver_info.clone(),
+                amount: host_fee,
+                authority: lending_market_authority_info.clone(),
+                authority_signer_seeds,
+                token_program: token_program_id.clone(),
+            })?;
+        }
+    }
+    if owner_fee > 0 {
+        spl_token_transfer(TokenTransferParams {
+            source: source_liquidity_info.clone(),
+            destination: borrow_reserve_liquidity_fee_receiver_info.clone(),
+            amount: owner_fee,
+            authority: lending_market_authority_info.clone(),
+            authority_signer_seeds,
+            token_program: token_program_id.clone(),
+        })?;
+    }
 
-    // spl_token_transfer(TokenTransferParams {
-    //     source: source_liquidity_info.clone(),
-    //     destination: destination_liquidity_info.clone(),
-    //     amount: receive_amount,
-    //     authority: lending_market_authority_info.clone(),
-    //     authority_signer_seeds,
-    //     token_program: token_program_id.clone(),
-    // })?;
+    spl_token_transfer(TokenTransferParams {
+        source: source_liquidity_info.clone(),
+        destination: destination_liquidity_info.clone(),
+        amount: receive_amount,
+        authority: lending_market_authority_info.clone(),
+        authority_signer_seeds,
+        token_program: token_program_id.clone(),
+    })?;
 
     Ok(())
 }

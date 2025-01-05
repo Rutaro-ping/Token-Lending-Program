@@ -1,10 +1,11 @@
 use {
     super::{
-        last_update::LastUpdate, pack_bool, pack_decimal, unpack_bool, unpack_decimal, PROGRAM_VERSION, UNINITIALIZED_VERSION
+        last_update::LastUpdate, pack_bool, pack_decimal, unpack_bool, unpack_decimal,
+        PROGRAM_VERSION, UNINITIALIZED_VERSION,
     },
     crate::{
         error::LendingError,
-        math::{Decimal, Rate, TryDiv, TryMul, TrySub},
+        math::{Decimal, Rate, TryAdd, TryDiv, TryMul, TrySub},
     },
     arrayref::{array_mut_ref, array_ref, array_refs, mut_array_refs},
     solana_program::{
@@ -47,7 +48,10 @@ impl ObligationLiquidity {
         self.borrowed_amount_wads = self.borrowed_amount_wads.try_sub(settle_amount)?;
         Ok(())
     }
-
+    pub fn borrow(&mut self, borrow_amount: Decimal) -> ProgramResult {
+        self.borrowed_amount_wads = self.borrowed_amount_wads.try_add(borrow_amount)?;
+        Ok(())
+    }
     pub fn accrue_interest(&mut self, cumulative_borrow_rate_wads: Decimal) -> ProgramResult {
         match cumulative_borrow_rate_wads.cmp(&self.cumulative_borrow_rate_wads) {
             Ordering::Less => {
@@ -112,6 +116,7 @@ impl Obligation {
     pub fn load_to_value(&self) -> Result<Decimal, ProgramError> {
         self.borrowed_value.try_div(self.deposited_value)
     }
+
     pub fn repay(&mut self, settle_amount: Decimal, liquidity_index: usize) -> ProgramResult {
         let liquidity = &mut self.borrows[liquidity_index];
         if settle_amount == liquidity.borrowed_amount_wads {
@@ -120,6 +125,33 @@ impl Obligation {
             liquidity.repay(settle_amount);
         }
         Ok(())
+    }
+    /// Calculate the maximum liquidity value that can be borrowed
+    pub fn remaining_borrow_value(&self) -> Result<Decimal, ProgramError> {
+        self.allowed_borrow_value.try_sub(self.borrowed_value)
+    }
+    pub fn find_or_add_liquidity_to_borrows(
+        &mut self,
+        borrow_reserve: Pubkey,
+    ) -> Result<&mut ObligationLiquidity, ProgramError> {
+        if let Some(liquidity_index) = self._find_liquidity_index_in_borrows(borrow_reserve) {
+            return Ok(&mut self.borrows[liquidity_index]);
+        }
+        if self.deposits.len() + self.borrows.len() >= MAX_OBLIGATION_RESERVES {
+            msg!(
+                "Obligation cannot have more than {} deposits and borrows combined",
+                MAX_OBLIGATION_RESERVES
+            );
+            return Err(LendingError::ObligationReserveLimit.into());
+        }
+        let liquidity = ObligationLiquidity::new(borrow_reserve);
+        self.borrows.push(liquidity);
+        Ok(self.borrows.last_mut().unwrap())
+    }
+    pub fn _find_liquidity_index_in_borrows(&self, borrow_reserve: Pubkey) -> Option<usize> {
+        self.borrows
+            .iter()
+            .position(|liquidity| liquidity.borrow_reserve == borrow_reserve)
     }
 }
 
