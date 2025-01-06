@@ -153,6 +153,30 @@ impl Obligation {
             .iter()
             .position(|liquidity| liquidity.borrow_reserve == borrow_reserve)
     }
+    fn _find_collateral_index_in_deposits(&self, deposit_reserve: Pubkey) -> Option<usize> {
+        self.deposits
+            .iter()
+            .position(|collateral| collateral.deposit_reserve == deposit_reserve)
+    }
+    /// Find or add collateral by deposit reserve
+    pub fn find_or_add_collateral_to_deposits(
+        &mut self,
+        deposit_reserve: Pubkey,
+    ) -> Result<&mut ObligationCollateral, ProgramError> {
+        if let Some(collateral_index) = self._find_collateral_index_in_deposits(deposit_reserve) {
+            return Ok(&mut self.deposits[collateral_index]);
+        }
+        if self.deposits.len() + self.borrows.len() >= MAX_OBLIGATION_RESERVES {
+            msg!(
+                "Obligation cannot have more than {} deposits and borrows combined",
+                MAX_OBLIGATION_RESERVES
+            );
+            return Err(LendingError::ObligationReserveLimit.into());
+        }
+        let collateral = ObligationCollateral::new(deposit_reserve);
+        self.deposits.push(collateral);
+        Ok(self.deposits.last_mut().unwrap())
+    }
 }
 
 /// Initialize an obligation

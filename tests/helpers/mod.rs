@@ -18,7 +18,7 @@ use {
         state::{Account as Token, AccountState, Mint},
     },
     spl_token_lending::{
-        instruction::{init_lending_market, init_obligation, init_reserve},
+        instruction::{init_lending_market, init_obligation, init_reserve, deposit_reserve_liquidity},
         math::{Decimal, Rate, TryAdd, TryMul},
         pyth,
         state::{
@@ -166,6 +166,49 @@ impl TestLendingMarket {
             quote_currency: QUOTE_CURRENCY,
             oracle_program_id,
         }
+    }
+
+    pub async fn deposit(
+        &self,
+        banks_client: &mut BanksClient,
+        user_accounts_owner: &Keypair,
+        payer: &Keypair,
+        reserve: &TestReserve,
+        liquidity_amount: u64,
+    ) {
+        let user_transfer_authority = Keypair::new();
+        let mut transaction = Transaction::new_with_payer(
+            &[
+                approve(
+                    &spl_token::id(),
+                    &reserve.user_liquidity_pubkey,
+                    &user_transfer_authority.pubkey(),
+                    &user_accounts_owner.pubkey(),
+                    &[],
+                    liquidity_amount,
+                )
+                .unwrap(),
+                deposit_reserve_liquidity(
+                    spl_token_lending::id(),
+                    liquidity_amount,
+                    reserve.user_liquidity_pubkey,
+                    reserve.user_collateral_pubkey,
+                    reserve.pubkey,
+                    reserve.liquidity_supply_pubkey,
+                    reserve.collateral_mint_pubkey,
+                    self.pubkey,
+                    user_transfer_authority.pubkey(),
+                ),
+            ],
+            Some(&payer.pubkey()),
+        );
+        let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+        transaction.sign(
+            &[payer, user_accounts_owner, &user_transfer_authority],
+            recent_blockhash,
+        );
+
+        assert_matches!(banks_client.process_transaction(transaction).await, Ok(()));
     }
 
     pub async fn get_state(&self, banks_client: &mut BanksClient) -> LendingMarket {
