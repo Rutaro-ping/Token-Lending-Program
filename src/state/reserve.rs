@@ -254,7 +254,7 @@ impl Reserve {
         Ok(liquididy_amount)
     }
 
-    /// Calculate the current borrow rate //todo
+    /// Calculate the current borrow rate
     pub fn current_borrow_rate(&self) -> Result<Rate, ProgramError> {
         let utilization_rate = self.liquidity.utilization_rate()?;
         let optimal_utilization_rate = Rate::from_percent(self.config.optimal_utilization_rate);

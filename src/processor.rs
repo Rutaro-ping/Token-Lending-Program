@@ -5,7 +5,10 @@ use {
         math::{Decimal, Rate, TryAdd, TryDiv, TryMul},
         pyth,
         state::{
-            CalculateBorrowResult, InitLendingMarketParams, InitObligationParams, InitReserveParams, LendingMarket, NewReserveCollateralParams, NewReserveLiquidityParams, Obligation, Reserve, ReserveCollateral, ReserveConfig, ReserveLiquidity
+            CalculateBorrowResult, InitLendingMarketParams, InitObligationParams,
+            InitReserveParams, LendingMarket, NewReserveCollateralParams,
+            NewReserveLiquidityParams, Obligation, Reserve, ReserveCollateral, ReserveConfig,
+            ReserveLiquidity,
         },
     },
     num_traits::FromPrimitive,
@@ -55,6 +58,10 @@ pub fn process_instruction(
             msg!("Instruction: Init Reserve");
             process_init_reserve(program_id, liquidity_amount, config, accounts)
         }
+        LendingInstruction::RefreshReserve => {
+            msg!("Instruction: Refresh Reserve");
+            process_refresh_reserve(program_id, accounts)
+        }
         LendingInstruction::InitObligation => {
             msg!("Instruction: Init Obligation");
             process_init_obligation(program_id, accounts)
@@ -80,6 +87,29 @@ pub fn process_instruction(
             Err(LendingError::NotRentExempt.into())
         }
     }
+}
+
+fn process_refresh_reserve(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+    let account_info_iter = &mut accounts.iter().peekable();
+    let reserve_info = next_account_info(account_info_iter)?;
+    let reserve_liquidity_oracle_info = next_account_info(account_info_iter)?;
+    let clock = &Clock::from_account_info(next_account_info(account_info_iter)?)?;
+    let mut reserve = Reserve::unpack(&reserve_info.data.borrow())?;
+    if reserve_info.owner != program_id {
+        msg!("Reserve provided is not owned by the lending program");
+        return Err(LendingError::InvalidAccountOwner.into());
+    }
+    if &reserve.liquidity.oracle_pubkey != reserve_liquidity_oracle_info.key {
+        msg!("Reserve liquidity oracle does not match the reserve liquidity oracle provided");
+        return Err(LendingError::InvalidAccountInput.into());
+    }
+    reserve.liquidity.market_price = get_pyth_price(reserve_liquidity_oracle_info, clock)?;
+    reserve.accrue_interest(clock.slot)?;
+    reserve.last_update.update_slot(clock.slot);
+    
+    Reserve::pack(reserve, &mut reserve_info.data.borrow_mut())?;
+
+    Ok(())
 }
 
 fn process_init_lending_market(

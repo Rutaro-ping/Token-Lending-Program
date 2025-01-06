@@ -209,6 +209,7 @@ impl LendingInstruction {
                     config,
                 }
             }
+            3 => Self::RefreshReserve,
             6 => Self::InitObligation,
             7 => Self::RefreshObligation,
             10 => {
@@ -246,6 +247,9 @@ impl LendingInstruction {
                 buf.push(2);
                 buf.extend_from_slice(&liquidity_amount.to_le_bytes());
                 Self::extend_buffer_from_reserve_config(&mut buf, &config);
+            }
+            Self::RefreshReserve => {
+                buf.push(3);
             }
             Self::InitObligation => {
                 buf.push(6);
@@ -542,6 +546,24 @@ pub fn borrow_obligation_liquidity(
     }
 }
 
+pub fn refresh_reserve(
+    program_id: Pubkey,
+    reserve_pubkey: Pubkey,
+    reserve_liquidity_oracle_pubkey: Pubkey,
+) -> Instruction {
+    let mut accounts = vec![
+        AccountMeta::new(reserve_pubkey, false),
+        AccountMeta::new(reserve_liquidity_oracle_pubkey, false),
+        AccountMeta::new_readonly(sysvar::clock::id(), false),
+    ];
+
+    Instruction {
+        program_id,
+        accounts,
+        data: LendingInstruction::RefreshReserve.pack(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -595,5 +617,16 @@ mod tests {
             instruction.data,
             LendingInstruction::SetLendingMarketOwner { new_owner }.pack()
         );
+    }
+    #[test]
+    fn test_refresh_reserve() {
+        let program_id = Pubkey::new_unique();
+        let reserve_pubkey = Pubkey::new_unique();
+        let reserve_liquidity_oracle_pubkey = Pubkey::new_unique();
+        let instruction =
+            refresh_reserve(program_id, reserve_pubkey, reserve_liquidity_oracle_pubkey);
+        assert_eq!(instruction.program_id, program_id);
+        assert_eq!(instruction.accounts.len(), 3);
+        assert_eq!(instruction.data, LendingInstruction::RefreshReserve.pack());
     }
 }

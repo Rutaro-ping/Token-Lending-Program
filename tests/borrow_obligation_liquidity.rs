@@ -218,7 +218,7 @@ async fn test_borrow_sol_max_amount() {
             ..AddObligationArgs::default()
         },
     );
-    let (banks_client, payer, recent_blockhash) = test.start().await;
+    let (mut banks_client, payer, recent_blockhash) = test.start().await;
     let mut transaction = Transaction::new_with_payer(
         &[refresh_obligation(
             spl_token_lending::id(),
@@ -227,6 +227,8 @@ async fn test_borrow_sol_max_amount() {
         )],
         Some(&payer.pubkey()),
     );
-    let result = transaction.sign(&[&payer], recent_blockhash);
-    println!("result: {:#?}", result);
+    transaction.sign(&[&payer], recent_blockhash);
+    assert!(banks_client.process_transaction(transaction).await.is_ok());
+    let sol_reserve = sol_test_reserve.get_state(&mut banks_client).await;
+    let usdc_reserve = usdc_test_reserve.get_state(&mut banks_client).await;
 }
