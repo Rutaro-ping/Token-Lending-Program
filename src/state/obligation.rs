@@ -126,6 +126,12 @@ impl Obligation {
         }
         Ok(())
     }
+    pub fn withdraw(&mut self, withdraw_amount: u64, collateral_index: usize) -> ProgramResult {
+        let collateral = &mut self.deposits.get_mut(collateral_index).unwrap();
+        collateral.withdraw(withdraw_amount)?;
+        Ok(())
+    }
+    
     /// Calculate the maximum liquidity value that can be borrowed
     pub fn remaining_borrow_value(&self) -> Result<Decimal, ProgramError> {
         self.allowed_borrow_value.try_sub(self.borrowed_value)
@@ -157,6 +163,35 @@ impl Obligation {
         self.deposits
             .iter()
             .position(|collateral| collateral.deposit_reserve == deposit_reserve)
+    }
+    /// Find collateral by deposit reserve
+    pub fn find_collateral_in_deposits(
+        &self,
+        deposit_reserve: Pubkey,
+    ) -> Result<(&ObligationCollateral, usize), ProgramError> {
+        if self.deposits.is_empty() {
+            msg!("Obligation has no deposits");
+            return Err(LendingError::ObligationDepositsEmpty.into());
+        }
+        let collateral_index = self
+            ._find_collateral_index_in_deposits(deposit_reserve)
+            .ok_or(LendingError::InvalidObligationCollateral)?;
+        Ok((&self.deposits[collateral_index], collateral_index))
+    }
+    /// Calculate the maximum collateral value that can be withdrawn
+    pub fn max_withdraw_value(
+        &self,
+        withdraw_collateral_ltv: Rate,
+    ) -> Result<Decimal, ProgramError> {
+        if self.allowed_borrow_value <= self.borrowed_value {
+            return Ok(Decimal::zero());
+        }
+        if withdraw_collateral_ltv == Rate::zero() {
+            return Ok(self.deposited_value);
+        }
+        self.allowed_borrow_value
+            .try_sub(self.borrowed_value)?
+            .try_div(withdraw_collateral_ltv)
     }
     /// Find or add collateral by deposit reserve
     pub fn find_or_add_collateral_to_deposits(

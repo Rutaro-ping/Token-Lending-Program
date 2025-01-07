@@ -176,6 +176,28 @@ pub enum LendingInstruction {
         /// Amount of collateral tokens to deposit
         collateral_amount: u64,
     },
+    // 9
+    /// Withdraw collateral from an obligation. Requires a refreshed obligation
+    /// and reserve.
+    ///
+    /// Accounts expected by this instruction:
+    ///
+    ///   0. `[writable]` Source withdraw reserve collateral supply SPL Token
+    ///      account.
+    ///   1. `[writable]` Destination collateral token account. Minted by
+    ///      withdraw reserve collateral mint.
+    ///   2. `[]` Withdraw reserve account - refreshed.
+    ///   3. `[writable]` Obligation account - refreshed.
+    ///   4. `[]` Lending market account.
+    ///   5. `[]` Derived lending market authority.
+    ///   6. `[signer]` Obligation owner.
+    ///   7. `[]` Clock sysvar.
+    ///   8. `[]` Token program id.
+    WithdrawObligationCollateral {
+        /// Amount of collateral tokens to withdraw - u64::MAX for up to 100% of
+        /// deposited amount
+        collateral_amount: u64,
+    },
     // 10
     /// Borrow liquidity from a reserve by depositing collateral tokens.
     /// Requires a refreshed obligation and reserve.
@@ -261,6 +283,10 @@ impl LendingInstruction {
             8 => {
                 let (collateral_amount, _) = Self::unpack_u64(rest)?;
                 Self::DepositObligationCollateral { collateral_amount }
+            }
+            9 => {
+                let (collateral_amount, _rest) = Self::unpack_u64(rest)?;
+                Self::WithdrawObligationCollateral { collateral_amount }
             }
             10 => {
                 let (liquidity_amount, rest) = Self::unpack_u64(rest)?;
@@ -456,6 +482,39 @@ pub fn deposit_obligation_collateral(
             AccountMeta::new_readonly(spl_token::id(), false),
         ],
         data: LendingInstruction::DepositObligationCollateral { collateral_amount }.pack(),
+    }
+}
+
+/// Creates a 'WithdrawObligationCollateral' instruction.
+#[allow(clippy::too_many_arguments)]
+pub fn withdraw_obligation_collateral(
+    program_id: Pubkey,
+    collateral_amount: u64,
+    source_collateral_pubkey: Pubkey,
+    destination_collateral_pubkey: Pubkey,
+    withdraw_reserve_pubkey: Pubkey,
+    obligation_pubkey: Pubkey,
+    lending_market_pubkey: Pubkey,
+    obligation_owner_pubkey: Pubkey,
+) -> Instruction {
+    let (lending_market_authority_pubkey, _bump_seed) = Pubkey::find_program_address(
+        &[&lending_market_pubkey.to_bytes()[..PUBKEY_BYTES]],
+        &program_id,
+    );
+    Instruction {
+        program_id,
+        accounts: vec![
+            AccountMeta::new(source_collateral_pubkey, false),
+            AccountMeta::new(destination_collateral_pubkey, false),
+            AccountMeta::new_readonly(withdraw_reserve_pubkey, false),
+            AccountMeta::new(obligation_pubkey, false),
+            AccountMeta::new_readonly(lending_market_pubkey, false),
+            AccountMeta::new_readonly(lending_market_authority_pubkey, false),
+            AccountMeta::new_readonly(obligation_owner_pubkey, true),
+            AccountMeta::new_readonly(sysvar::clock::id(), false),
+            AccountMeta::new_readonly(spl_token::id(), false),
+        ],
+        data: LendingInstruction::WithdrawObligationCollateral { collateral_amount }.pack(),
     }
 }
 
