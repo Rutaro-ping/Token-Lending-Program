@@ -18,7 +18,9 @@ use {
         state::{Account as Token, AccountState, Mint},
     },
     spl_token_lending::{
-        instruction::{init_lending_market, init_obligation, init_reserve, deposit_reserve_liquidity},
+        instruction::builder::{
+            deposit_reserve_liquidity, init_lending_market, init_obligation, init_reserve,
+        },
         math::{Decimal, Rate, TryAdd, TryMul},
         pyth,
         state::{

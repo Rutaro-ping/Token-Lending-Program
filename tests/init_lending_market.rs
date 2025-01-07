@@ -9,7 +9,8 @@ use {
         transaction::{Transaction, TransactionError},
     },
     spl_token_lending::{
-        error::LendingError, instruction::init_lending_market, processor::process_instruction,
+        error::LendingError, instruction::builder::init_lending_market,
+        processor::process_instruction,
     },
 };
 
@@ -46,7 +47,7 @@ async fn test_already_initialized() {
         Some(&payer.pubkey()),
     );
     transaction.sign(&[&payer], recent_blockhash);
-  
+
     assert_eq!(
         banks_client
             .process_transaction(transaction)
