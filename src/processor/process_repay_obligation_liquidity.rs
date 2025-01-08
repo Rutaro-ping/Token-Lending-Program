@@ -1,5 +1,4 @@
 use {
-    super::{assert_rent_exempt, assert_uninitialized},
     crate::{
         error::LendingError,
         state::{LendingMarket, Reserve},

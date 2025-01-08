@@ -13,7 +13,7 @@ use {
         transaction::Transaction,
     },
     spl_token_lending::{
-        instruction::builder::borrow_obligation_liquidity,
+        instruction::builder::{borrow_obligation_liquidity, refresh_obligation},
         math::Decimal,
         processor::process_instruction,
         state::{FeeCalculation, INITIAL_COLLATERAL_RATIO},

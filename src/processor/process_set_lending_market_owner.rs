@@ -1,8 +1,7 @@
 use {
-    super::{assert_rent_exempt, assert_uninitialized},
     crate::{
         error::LendingError,
-        state::{InitLendingMarketParams, LendingMarket},
+        state::LendingMarket,
     },
     solana_program::{
         account_info::{next_account_info, AccountInfo},
@@ -10,8 +9,6 @@ use {
         msg,
         program_pack::Pack,
         pubkey::Pubkey,
-        rent::Rent,
-        sysvar::Sysvar,
     },
 };
 #[inline(never)] // avoid stack frame limit

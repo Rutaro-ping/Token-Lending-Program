@@ -12,8 +12,7 @@ use {
     },
     spl_token::instruction::approve,
     spl_token_lending::{
-        instruction::deposit_obligation_collateral, processor::process_instruction,
-        state::INITIAL_COLLATERAL_RATIO,
+         instruction::builder::deposit_obligation_collateral, processor::process_instruction, state::INITIAL_COLLATERAL_RATIO
     },
 };
 

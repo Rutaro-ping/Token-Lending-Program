@@ -1,8 +1,8 @@
 use {
+    super::{spl_token_mint_to, spl_token_transfer, TokenMintToParams, TokenTransferParams},
     crate::{
         error::LendingError,
-        math::{Decimal, Rate, TryAdd, TryDiv, TryMul},
-        state::{LendingMarket, Obligation, Reserve},
+        state::{LendingMarket, Reserve},
     },
     solana_program::{
         account_info::{next_account_info, AccountInfo},
@@ -92,22 +92,22 @@ pub(super) fn process_deposit_reserve_liquidity(
     reserve.last_update.mark_stale();
     Reserve::pack(reserve, &mut reserve_info.data.borrow_mut())?;
 
-    // spl_token_transfer(TokenTransferParams {
-    //     source: source_liquidity_info.clone(),
-    //     destination: reserve_liquidity_supply_info.clone(),
-    //     amount: liquidity_amount,
-    //     authority: user_transfer_authority_info.clone(),
-    //     authority_signer_seeds: &[],
-    //     token_program: token_program_id.clone(),
-    // })?;
+    spl_token_transfer(TokenTransferParams {
+        source: source_liquidity_info.clone(),
+        destination: reserve_liquidity_supply_info.clone(),
+        amount: liquidity_amount,
+        authority: user_transfer_authority_info.clone(),
+        authority_signer_seeds: &[],
+        token_program: token_program_id.clone(),
+    })?;
 
-    // spl_token_mint_to(TokenMintToParams {
-    //     mint: reserve_collateral_mint_info.clone(),
-    //     destination: destination_collateral_info.clone(),
-    //     amount: collateral_amount,
-    //     authority: lending_market_authority_info.clone(),
-    //     authority_signer_seeds,
-    //     token_program: token_program_id.clone(),
-    // })?;//todo
+    spl_token_mint_to(TokenMintToParams {
+        mint: reserve_collateral_mint_info.clone(),
+        destination: destination_collateral_info.clone(),
+        amount: collateral_amount,
+        authority: lending_market_authority_info.clone(),
+        authority_signer_seeds,
+        token_program: token_program_id.clone(),
+    })?;
     Ok(())
 }

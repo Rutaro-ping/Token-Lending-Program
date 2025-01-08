@@ -154,7 +154,7 @@ pub(super) fn process_borrow_obligation_liquidity(
     obligation.last_update.mark_stale();
     Obligation::pack(obligation, &mut obligation_info.data.borrow_mut())?;
 
-    let mut owner_fee = borrow_fee;
+    let owner_fee = borrow_fee;
     // if let Ok(host_fee_receiver_info) = next_account_info(account_info_iter) {
     //     if host_fee > 0 {
     //         owner_fee = owner_fee

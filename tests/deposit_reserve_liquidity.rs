@@ -23,7 +23,7 @@ async fn test_success() {
     test.set_compute_max_units(50_000);
     let user_accounts_owner = Keypair::new();
     let lending_market = add_lending_market(&mut test);
-    let usdc_mint = add_usdc_mint(&mut test); //todo
+    let usdc_mint = add_usdc_mint(&mut test);
     let usdc_oracle = add_usdc_oracle(&mut test);
     let usdc_test_reserve = add_reserve(
         &mut test,
@@ -50,4 +50,5 @@ async fn test_success() {
             100 * FRACTIONAL_TO_USDC,
         )
         .await;
+    //todo validate token accounts
 }

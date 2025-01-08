@@ -55,7 +55,7 @@ async fn test_success() {
     )
     .await
     .unwrap();
-    // sol_reserve.validate_state(&mut banks_client).await;
+    sol_reserve.validate_state(&mut banks_client).await;
 }
 
 #[tokio::test]

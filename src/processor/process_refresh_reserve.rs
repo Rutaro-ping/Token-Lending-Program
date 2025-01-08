@@ -1,8 +1,7 @@
 use {
     crate::{
         error::LendingError,
-        math::{Decimal, Rate, TryAdd, TryDiv, TryMul},
-        state::{Obligation, Reserve},
+        state::Reserve,
     },
     solana_program::{
         account_info::{next_account_info, AccountInfo},

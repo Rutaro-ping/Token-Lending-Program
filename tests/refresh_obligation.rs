@@ -11,7 +11,7 @@ use {
         transaction::Transaction,
     },
     spl_token_lending::{
-        instruction::{refresh_obligation, refresh_reserve},
+        instruction::builder::{refresh_obligation, refresh_reserve},
         math::{Decimal, Rate, TryAdd, TryDiv, TryMul},
         processor::process_instruction,
         state::{INITIAL_COLLATERAL_RATIO, SLOTS_PER_YEAR},

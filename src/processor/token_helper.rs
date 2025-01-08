@@ -5,7 +5,7 @@ use {
         pyth,
     },
     solana_program::{
-        account_info::{next_account_info, AccountInfo},
+        account_info::AccountInfo,
         clock::Clock,
         entrypoint::ProgramResult,
         instruction::Instruction,
@@ -14,7 +14,6 @@ use {
         program_error::ProgramError,
         program_pack::Pack,
         pubkey::Pubkey,
-        sysvar::Sysvar,
     },
     spl_token::state::Mint,
 };

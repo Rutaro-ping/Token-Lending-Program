@@ -15,7 +15,7 @@ use {
     },
     spl_token_lending::{
         error::LendingError,
-        instruction::{set_lending_market_owner, LendingInstruction},
+        instruction::{builder::set_lending_market_owner, LendingInstruction},
         processor::process_instruction,
     },
 };
