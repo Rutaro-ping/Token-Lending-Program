@@ -115,6 +115,10 @@ impl LendingInstruction {
                 buf.push(8);
                 buf.extend_from_slice(&collateral_amount.to_le_bytes());
             }
+            Self::WithdrawObligationCollateral { collateral_amount } => {
+                buf.push(9);
+                buf.extend_from_slice(&collateral_amount.to_le_bytes());
+            }
             Self::BorrowObligationLiquidity {
                 liquidity_amount,
                 slippage_limit,
