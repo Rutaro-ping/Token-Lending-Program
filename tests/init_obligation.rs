@@ -12,7 +12,7 @@ use {
         transaction::{Transaction, TransactionError},
     },
     spl_token_lending::{
-        error::LendingError, instruction::init_obligation, processor::process_instruction,
+        error::LendingError, instruction::builder::init_obligation, processor::process_instruction,
     },
 };
 

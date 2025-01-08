@@ -2,13 +2,15 @@
 #![cfg(feature = "test-sbf")]
 
 mod helpers;
-use helpers::{
-    add_lending_market, add_reserve, add_usdc_mint, add_usdc_oracle, AddReserveArgs,
-    FRACTIONAL_TO_USDC, TEST_RESERVE_CONFIG,
+use {
+    helpers::{
+        add_lending_market, add_reserve, add_usdc_mint, add_usdc_oracle, AddReserveArgs,
+        FRACTIONAL_TO_USDC, TEST_RESERVE_CONFIG,
+    },
+    solana_program_test::*,
+    solana_sdk::signature::Keypair,
+    spl_token_lending::processor::process_instruction,
 };
-use solana_program_test::*;
-use solana_sdk::signature::Keypair;
-use spl_token_lending::processor::process_instruction;
 
 #[tokio::test]
 async fn test_success() {

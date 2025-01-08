@@ -294,7 +294,7 @@ pub fn refresh_reserve(
     reserve_pubkey: Pubkey,
     reserve_liquidity_oracle_pubkey: Pubkey,
 ) -> Instruction {
-    let mut accounts = vec![
+    let accounts = vec![
         AccountMeta::new(reserve_pubkey, false),
         AccountMeta::new(reserve_liquidity_oracle_pubkey, false),
         AccountMeta::new_readonly(sysvar::clock::id(), false),

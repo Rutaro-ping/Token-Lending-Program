@@ -1,14 +1,16 @@
-//methods for the lending instruction enum, mainly used for processing instructions in solana programs
-use crate::{
-    error::LendingError,
-    state::{ReserveConfig, ReserveFees},
-};
-
-use super::LendingInstruction;
-use solana_program::{
-    msg,
-    program_error::ProgramError,
-    pubkey::{Pubkey, PUBKEY_BYTES},
+//methods for the lending instruction enum, mainly used for processing
+// instructions in solana programs
+use {
+    super::LendingInstruction,
+    crate::{
+        error::LendingError,
+        state::{ReserveConfig, ReserveFees},
+    },
+    solana_program::{
+        msg,
+        program_error::ProgramError,
+        pubkey::{Pubkey, PUBKEY_BYTES},
+    },
 };
 
 impl LendingInstruction {

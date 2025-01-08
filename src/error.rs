@@ -1,6 +1,11 @@
 use {
     num_derive::FromPrimitive,
-    solana_program::{decode_error::DecodeError, program_error::ProgramError},
+    num_traits::FromPrimitive, //todo
+    solana_program::{
+        decode_error::DecodeError,
+        msg,
+        program_error::{PrintProgramError, ProgramError},
+    },
     thiserror::Error,
 };
 #[derive(Clone, Debug, Eq, Error, FromPrimitive, PartialEq)]
@@ -174,5 +179,14 @@ impl From<LendingError> for ProgramError {
 impl<T> DecodeError<T> for LendingError {
     fn type_of() -> &'static str {
         "Lending Error"
+    }
+}
+
+impl PrintProgramError for LendingError {
+    fn print<E>(&self)
+    where
+        E: 'static + std::error::Error + DecodeError<E> + PrintProgramError + FromPrimitive,
+    {
+        msg!(&self.to_string());
     }
 }

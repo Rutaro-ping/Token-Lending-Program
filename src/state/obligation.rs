@@ -131,7 +131,7 @@ impl Obligation {
         collateral.withdraw(withdraw_amount)?;
         Ok(())
     }
-    
+
     /// Calculate the maximum liquidity value that can be borrowed
     pub fn remaining_borrow_value(&self) -> Result<Decimal, ProgramError> {
         self.allowed_borrow_value.try_sub(self.borrowed_value)

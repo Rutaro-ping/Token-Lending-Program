@@ -118,7 +118,6 @@ async fn test_success() {
                 sol_oracle.price_pubkey,
             ),
             refresh_obligation(
-                
                 spl_token_lending::id(),
                 test_obligation.pubkey,
                 vec![sol_test_reserve.pubkey, usdc_test_reserve.pubkey],

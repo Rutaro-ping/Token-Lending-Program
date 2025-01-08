@@ -10,7 +10,7 @@ use {
     solana_program_test::*,
     solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction},
     spl_token_lending::{
-        instruction::refresh_reserve,
+        instruction::builder::refresh_reserve,
         math::{Decimal, Rate, TryAdd, TryDiv, TryMul},
         processor::process_instruction,
         state::SLOTS_PER_YEAR,
