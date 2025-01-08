@@ -4,7 +4,7 @@ use {
     super::LendingInstruction,
     crate::{
         error::LendingError,
-        state::{ReserveConfig, ReserveFees},
+        state::reserve::{ReserveConfig, ReserveFees},
     },
     solana_program::{
         msg,

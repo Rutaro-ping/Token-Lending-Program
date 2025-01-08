@@ -1,4 +1,5 @@
 use {
+    super::{spl_token_transfer, TokenTransferParams},
     crate::{
         error::LendingError,
         state::{LendingMarket, Obligation, Reserve},
@@ -96,14 +97,14 @@ pub(super) fn process_deposit_obligation_collateral(
     obligation.last_update.mark_stale();
     Obligation::pack(obligation, &mut obligation_info.data.borrow_mut())?;
 
-    // spl_token_transfer(TokenTransferParams {
-    //     source: source_collateral_info.clone(),
-    //     destination: destination_collateral_info.clone(),
-    //     amount: collateral_amount,
-    //     authority: user_transfer_authority_info.clone(),
-    //     authority_signer_seeds: &[],
-    //     token_program: token_program_id.clone(),
-    // })?;
-    //todo
+    spl_token_transfer(TokenTransferParams {
+        source: source_collateral_info.clone(),
+        destination: destination_collateral_info.clone(),
+        amount: collateral_amount,
+        authority: user_transfer_authority_info.clone(),
+        authority_signer_seeds: &[],
+        token_program: token_program_id.clone(),
+    })?;
+
     Ok(())
 }

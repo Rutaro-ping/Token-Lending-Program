@@ -1,7 +1,7 @@
 mod last_update;
 mod lending_market;
-mod obligation;
-mod reserve;
+pub mod obligation;
+pub mod reserve;
 use {
     crate::math::Decimal,
     solana_program::{

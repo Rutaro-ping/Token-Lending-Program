@@ -4,7 +4,14 @@ use {
     assert_matches::*,
     solana_program_test::{find_file, read_file, BanksClient, ProgramTest},
     solana_sdk::{
-        account::Account, program_option::COption, program_pack::Pack, pubkey::Pubkey, signature::{read_keypair_file, Keypair}, signer::Signer, system_instruction::create_account, transaction::{Transaction, TransactionError}
+        account::Account,
+        program_option::COption,
+        program_pack::Pack,
+        pubkey::Pubkey,
+        signature::{read_keypair_file, Keypair},
+        signer::Signer,
+        system_instruction::create_account,
+        transaction::{Transaction, TransactionError},
     },
     spl_token::{
         instruction::approve,

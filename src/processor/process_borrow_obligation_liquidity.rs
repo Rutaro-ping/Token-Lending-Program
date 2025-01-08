@@ -1,4 +1,5 @@
 use {
+    super::{spl_token_transfer, TokenTransferParams},
     crate::{
         error::LendingError,
         math::Decimal,
@@ -154,42 +155,42 @@ pub(super) fn process_borrow_obligation_liquidity(
     obligation.last_update.mark_stale();
     Obligation::pack(obligation, &mut obligation_info.data.borrow_mut())?;
 
-    let owner_fee = borrow_fee;
-    // if let Ok(host_fee_receiver_info) = next_account_info(account_info_iter) {
-    //     if host_fee > 0 {
-    //         owner_fee = owner_fee
-    //             .checked_sub(host_fee)
-    //             .ok_or(LendingError::MathOverflow)?;
+    let mut owner_fee = borrow_fee;
+    if let Ok(host_fee_receiver_info) = next_account_info(account_info_iter) {
+        if host_fee > 0 {
+            owner_fee = owner_fee
+                .checked_sub(host_fee)
+                .ok_or(LendingError::MathOverflow)?;
 
-    //         spl_token_transfer(TokenTransferParams {
-    //             source: source_liquidity_info.clone(),
-    //             destination: host_fee_receiver_info.clone(),
-    //             amount: host_fee,
-    //             authority: lending_market_authority_info.clone(),
-    //             authority_signer_seeds,
-    //             token_program: token_program_id.clone(),
-    //         })?;
-    //     }
-    // }
-    // if owner_fee > 0 {
-    //     spl_token_transfer(TokenTransferParams {
-    //         source: source_liquidity_info.clone(),
-    //         destination: borrow_reserve_liquidity_fee_receiver_info.clone(),
-    //         amount: owner_fee,
-    //         authority: lending_market_authority_info.clone(),
-    //         authority_signer_seeds,
-    //         token_program: token_program_id.clone(),
-    //     })?;
-    // }
+            spl_token_transfer(TokenTransferParams {
+                source: source_liquidity_info.clone(),
+                destination: host_fee_receiver_info.clone(),
+                amount: host_fee,
+                authority: lending_market_authority_info.clone(),
+                authority_signer_seeds,
+                token_program: token_program_id.clone(),
+            })?;
+        }
+    }
+    if owner_fee > 0 {
+        spl_token_transfer(TokenTransferParams {
+            source: source_liquidity_info.clone(),
+            destination: borrow_reserve_liquidity_fee_receiver_info.clone(),
+            amount: owner_fee,
+            authority: lending_market_authority_info.clone(),
+            authority_signer_seeds,
+            token_program: token_program_id.clone(),
+        })?;
+    }
 
-    // spl_token_transfer(TokenTransferParams {
-    //     source: source_liquidity_info.clone(),
-    //     destination: destination_liquidity_info.clone(),
-    //     amount: receive_amount,
-    //     authority: lending_market_authority_info.clone(),
-    //     authority_signer_seeds,
-    //     token_program: token_program_id.clone(),
-    // })?; //todo
+    spl_token_transfer(TokenTransferParams {
+        source: source_liquidity_info.clone(),
+        destination: destination_liquidity_info.clone(),
+        amount: receive_amount,
+        authority: lending_market_authority_info.clone(),
+        authority_signer_seeds,
+        token_program: token_program_id.clone(),
+    })?;
 
     Ok(())
 }

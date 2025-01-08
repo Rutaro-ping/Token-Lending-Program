@@ -27,9 +27,9 @@ pub(super) fn process_init_obligation(
     let clock = &Clock::from_account_info(next_account_info(account_info_iter)?)?;
     let rent = &Rent::from_account_info(next_account_info(account_info_iter)?)?;
     let token_program_id = next_account_info(account_info_iter)?;
-    
+
     assert_rent_exempt(rent, obligation_info)?;
-   
+
     let mut obligation = assert_uninitialized::<Obligation>(obligation_info)?;
     if obligation_info.owner != program_id {
         msg!("Obligation provided is not owned by the lending program");

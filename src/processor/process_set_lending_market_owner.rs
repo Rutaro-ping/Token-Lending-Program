@@ -1,8 +1,5 @@
 use {
-    crate::{
-        error::LendingError,
-        state::LendingMarket,
-    },
+    crate::{error::LendingError, state::LendingMarket},
     solana_program::{
         account_info::{next_account_info, AccountInfo},
         entrypoint::ProgramResult,
