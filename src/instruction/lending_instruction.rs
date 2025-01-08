@@ -232,4 +232,86 @@ pub enum LendingInstruction {
         /// Amount of liquidity to repay - u64::MAX for 100% of borrowed amount
         liquidity_amount: u64,
     },
+    // 12
+    /// Repay borrowed liquidity to a reserve to receive collateral at a
+    /// discount from an unhealthy obligation. Requires a refreshed
+    /// obligation and reserves.
+    ///
+    /// Accounts expected by this instruction:
+    ///
+    ///   0. `[writable]` Source liquidity token account. Minted by repay
+    ///      reserve liquidity mint. $authority can transfer $liquidity_amount.
+    ///   1. `[writable]` Destination collateral token account. Minted by
+    ///      withdraw reserve collateral mint.
+    ///   2. `[writable]` Repay reserve account - refreshed.
+    ///   3. `[writable]` Repay reserve liquidity supply SPL Token account.
+    ///   4. `[]` Withdraw reserve account - refreshed.
+    ///   5. `[writable]` Withdraw reserve collateral supply SPL Token account.
+    ///   6. `[writable]` Obligation account - refreshed.
+    ///   7. `[]` Lending market account.
+    ///   8. `[]` Derived lending market authority.
+    ///   9. `[signer]` User transfer authority ($authority).
+    ///   10. `[]` Clock sysvar.
+    ///   11. `[]` Token program id.
+    LiquidateObligation {
+        /// Amount of liquidity to repay - u64::MAX for up to 100% of borrowed
+        /// amount
+        liquidity_amount: u64,
+    },
+    // 13
+    /// Make a flash loan.
+    ///
+    /// Accounts expected by this instruction:
+    ///
+    ///   0. `[writable]` Source liquidity token account. Minted by reserve
+    ///      liquidity mint. Must match the reserve liquidity supply.
+    ///   1. `[writable]` Destination liquidity token account. Minted by reserve
+    ///      liquidity mint.
+    ///   2. `[writable]` Reserve account.
+    ///   3. `[writable]` Flash loan fee receiver account. Must match the
+    ///      reserve liquidity fee receiver.
+    ///   4. `[writable]` Host fee receiver.
+    ///   5. `[]` Lending market account.
+    ///   6. `[]` Derived lending market authority.
+    ///   7. `[]` Token program id.
+    ///   8. `[]` Flash loan receiver program id. Must implement an instruction
+    ///      that has tag of 0 and a signature of `(amount: u64)` This
+    ///      instruction must return the amount to the source liquidity account.
+    ///   9. .. `[any]` Additional accounts expected by the receiving program's
+    ///      `ReceiveFlashLoan` instruction.
+    ///
+    ///   The flash loan receiver program that is to be invoked should contain
+    /// an instruction with   tag `0` and accept the total amount (including
+    /// fee) that needs to be returned back after   its execution has
+    /// completed.
+    ///
+    ///   Flash loan receiver should have an instruction with the following
+    /// signature:
+    ///
+    ///   0. `[writable]` Source liquidity (matching the destination from
+    ///      above).
+    ///   1. `[writable]` Destination liquidity (matching the source from
+    ///      above).
+    ///   2. `[]` Token program id
+    ///   3. .. `[any]` Additional accounts provided to the lending program's
+    ///      `FlashLoan` instruction above.   ReceiveFlashLoan { // Amount that
+    ///      must be repaid by the receiver program amount: u64 }
+    FlashLoan {
+        /// The amount that is to be borrowed - u64::MAX for up to 100% of
+        /// available liquidity
+        amount: u64,
+    },
+    // 14
+    /// Modify the ReserveConfig parameters of an already initialized Reserve
+    /// account
+    ///
+    /// Accounts expected by this instruction:
+    ///
+    ///   0. `[writable]` Reserve account
+    ///   1. `[]` Lending market account
+    ///   2. `[signer]` Lending market owner
+    ModifyReserveConfig {
+        /// Reserve configuration updated values
+        new_config: ReserveConfig,
+    },
 }

@@ -39,6 +39,66 @@ pub fn deposit_obligation_collateral(
     }
 }
 
+/// Creates a `LiquidateObligation` instruction
+#[allow(clippy::too_many_arguments)]
+pub fn liquidate_obligation(
+    program_id: Pubkey,
+    liquidity_amount: u64,
+    source_liquidity_pubkey: Pubkey,
+    destination_collateral_pubkey: Pubkey,
+    repay_reserve_pubkey: Pubkey,
+    repay_reserve_liquidity_supply_pubkey: Pubkey,
+    withdraw_reserve_pubkey: Pubkey,
+    withdraw_reserve_collateral_supply_pubkey: Pubkey,
+    obligation_pubkey: Pubkey,
+    lending_market_pubkey: Pubkey,
+    user_transfer_authority_pubkey: Pubkey,
+) -> Instruction {
+    let (lending_market_authority_pubkey, _bump_seed) = Pubkey::find_program_address(
+        &[&lending_market_pubkey.to_bytes()[..PUBKEY_BYTES]],
+        &program_id,
+    );
+    Instruction {
+        program_id,
+        accounts: vec![
+            AccountMeta::new(source_liquidity_pubkey, false),
+            AccountMeta::new(destination_collateral_pubkey, false),
+            AccountMeta::new(repay_reserve_pubkey, false),
+            AccountMeta::new(repay_reserve_liquidity_supply_pubkey, false),
+            AccountMeta::new_readonly(withdraw_reserve_pubkey, false),
+            AccountMeta::new(withdraw_reserve_collateral_supply_pubkey, false),
+            AccountMeta::new(obligation_pubkey, false),
+            AccountMeta::new_readonly(lending_market_pubkey, false),
+            AccountMeta::new_readonly(lending_market_authority_pubkey, false),
+            AccountMeta::new_readonly(user_transfer_authority_pubkey, true),
+            AccountMeta::new_readonly(sysvar::clock::id(), false),
+            AccountMeta::new_readonly(spl_token::id(), false),
+        ],
+        data: LendingInstruction::LiquidateObligation { liquidity_amount }.pack(),
+    }
+}
+
+/// Creates a 'ModifyReserveConfig` instruction.
+#[allow(clippy::too_many_arguments)]
+pub fn modify_reserve_config(
+    program_id: Pubkey,
+    config: ReserveConfig,
+    reserve_pubkey: Pubkey,
+    lending_market_pubkey: Pubkey,
+    lending_market_owner_pubkey: Pubkey,
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new(reserve_pubkey, false),
+        AccountMeta::new(lending_market_pubkey, false),
+        AccountMeta::new(lending_market_owner_pubkey, true),
+    ];
+    Instruction {
+        program_id,
+        accounts,
+        data: LendingInstruction::ModifyReserveConfig { new_config: config }.pack(),
+    }
+}
+
 /// Creates a 'WithdrawObligationCollateral' instruction.
 #[allow(clippy::too_many_arguments)]
 pub fn withdraw_obligation_collateral(

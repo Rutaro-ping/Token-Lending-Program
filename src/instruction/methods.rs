@@ -44,6 +44,10 @@ impl LendingInstruction {
                 let (liquidity_amount, _) = Self::unpack_u64(rest)?;
                 Self::DepositReserveLiquidity { liquidity_amount }
             }
+            5 => {
+                let (collateral_amount, _rest) = Self::unpack_u64(rest)?;
+                Self::RedeemReserveCollateral { collateral_amount }
+            }
             6 => Self::InitObligation,
             7 => Self::RefreshObligation,
             8 => {
@@ -67,11 +71,22 @@ impl LendingInstruction {
                 Self::RepayObligationLiquidity { liquidity_amount }
             }
             12 => {
-                let (collateral_amount, _rest) = Self::unpack_u64(rest)?;
-                Self::RedeemReserveCollateral { collateral_amount }
+                let (liquidity_amount, _rest) = Self::unpack_u64(rest)?;
+                Self::LiquidateObligation { liquidity_amount }
+            }
+            13 => {
+                let (amount, _rest) = Self::unpack_u64(rest)?;
+                Self::FlashLoan { amount }
+            }
+            14 => {
+                let new_config = Self::unpack_reserve_config(rest)?;
+                Self::ModifyReserveConfig { new_config }
             }
 
-            _ => unreachable!(),
+            _ => {
+                msg!("Instruction cannot be unpacked");
+                return Err(LendingError::InstructionUnpackError.into());
+            }
         })
     }
 
@@ -105,6 +120,11 @@ impl LendingInstruction {
                 buf.push(4);
                 buf.extend_from_slice(&liquidity_amount.to_le_bytes());
             }
+            Self::RedeemReserveCollateral { collateral_amount } => {
+                buf.push(5);
+                buf.extend_from_slice(&collateral_amount.to_le_bytes());
+            }
+
             Self::InitObligation => {
                 buf.push(6);
             }
@@ -131,11 +151,14 @@ impl LendingInstruction {
                 buf.push(11);
                 buf.extend_from_slice(&liquidity_amount.to_le_bytes());
             }
-            Self::RedeemReserveCollateral { collateral_amount } => {
+            Self::LiquidateObligation { liquidity_amount } => {
                 buf.push(12);
-                buf.extend_from_slice(&collateral_amount.to_le_bytes());
+                buf.extend_from_slice(&liquidity_amount.to_le_bytes());
             }
-            _ => unreachable!(),
+            Self::ModifyReserveConfig { new_config } => {
+                buf.push(14);
+                Self::extend_buffer_from_reserve_config(&mut buf, &new_config);
+            }
         }
 
         buf
