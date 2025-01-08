@@ -334,6 +334,41 @@ pub fn repay_obligation_liquidity(
     }
 }
 
+/// Creates a 'RedeemReserveCollateral' instruction.
+#[allow(clippy::too_many_arguments)]
+pub fn redeem_reserve_collateral(
+    program_id: Pubkey,
+    collateral_amount: u64,
+    source_collateral_pubkey: Pubkey,
+    destination_liquidity_pubkey: Pubkey,
+    reserve_pubkey: Pubkey,
+    reserve_collateral_mint_pubkey: Pubkey,
+    reserve_liquidity_supply_pubkey: Pubkey,
+    lending_market_pubkey: Pubkey,
+    user_transfer_authority_pubkey: Pubkey,
+) -> Instruction {
+    let (lending_market_authority_pubkey, _bump_seed) = Pubkey::find_program_address(
+        &[&lending_market_pubkey.to_bytes()[..PUBKEY_BYTES]],
+        &program_id,
+    );
+    Instruction {
+        program_id,
+        accounts: vec![
+            AccountMeta::new(source_collateral_pubkey, false),
+            AccountMeta::new(destination_liquidity_pubkey, false),
+            AccountMeta::new(reserve_pubkey, false),
+            AccountMeta::new(reserve_collateral_mint_pubkey, false),
+            AccountMeta::new(reserve_liquidity_supply_pubkey, false),
+            AccountMeta::new_readonly(lending_market_pubkey, false),
+            AccountMeta::new_readonly(lending_market_authority_pubkey, false),
+            AccountMeta::new_readonly(user_transfer_authority_pubkey, true),
+            AccountMeta::new_readonly(sysvar::clock::id(), false),
+            AccountMeta::new_readonly(spl_token::id(), false),
+        ],
+        data: LendingInstruction::RedeemReserveCollateral { collateral_amount }.pack(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -369,6 +404,7 @@ mod tests {
             .pack()
         );
     }
+
     #[test]
     fn test_set_lending_market_owner() {
         let program_id = Pubkey::new_unique();

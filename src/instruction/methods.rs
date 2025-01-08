@@ -66,6 +66,10 @@ impl LendingInstruction {
                 let (liquidity_amount, _rest) = Self::unpack_u64(rest)?;
                 Self::RepayObligationLiquidity { liquidity_amount }
             }
+            12 => {
+                let (collateral_amount, _rest) = Self::unpack_u64(rest)?;
+                Self::RedeemReserveCollateral { collateral_amount }
+            }
 
             _ => unreachable!(),
         })
@@ -123,7 +127,10 @@ impl LendingInstruction {
                 buf.push(11);
                 buf.extend_from_slice(&liquidity_amount.to_le_bytes());
             }
-
+            Self::RedeemReserveCollateral { collateral_amount } => {
+                buf.push(12);
+                buf.extend_from_slice(&collateral_amount.to_le_bytes());
+            }
             _ => unreachable!(),
         }
 

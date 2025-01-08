@@ -4,6 +4,7 @@ mod process_deposit_reserve_liquidity;
 mod process_init_lending_market;
 mod process_init_obligation;
 mod process_init_reserve;
+mod process_redeem_reserve_collateral;
 mod process_refresh_obligation;
 mod process_refresh_reserve;
 mod process_repay_obligation_liquidity;
@@ -20,6 +21,7 @@ use {
     process_init_lending_market::*,
     process_init_obligation::*,
     process_init_reserve::*,
+    process_redeem_reserve_collateral::*,
     process_refresh_obligation::*,
     process_refresh_reserve::*,
     process_repay_obligation_liquidity::*,
@@ -95,6 +97,10 @@ pub fn process_instruction(
         LendingInstruction::RepayObligationLiquidity { liquidity_amount } => {
             msg!("Instruction: Repay Obligation Liquidity");
             process_repay_obligation_liquidity(program_id, liquidity_amount, accounts)
+        }
+        LendingInstruction::RedeemReserveCollateral { collateral_amount } => {
+            msg!("Instruction: Redeem Reserve Collateral");
+            process_redeem_reserve_collateral(program_id, collateral_amount, accounts)
         }
         _ => {
             msg!("Unsupported instruction");

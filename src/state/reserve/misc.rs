@@ -3,11 +3,7 @@ use {
         error::LendingError,
         math::{Decimal, Rate, TryAdd, TryDiv, TryMul, WAD},
     },
-    solana_program::{
-        entrypoint::ProgramResult,
-        msg,
-        program_error::ProgramError,
-    },
+    solana_program::{entrypoint::ProgramResult, msg, program_error::ProgramError},
 };
 
 /// Calculate borrow result
