@@ -1,7 +1,9 @@
 use {
+    super::{spl_token_transfer, TokenTransferParams},
     crate::{
         error::LendingError,
-        state::{LendingMarket, Obligation, Reserve},
+        math::Decimal,
+        state::{CalculateRepayResult, LendingMarket, Obligation, Reserve},
     },
     solana_program::{
         account_info::{next_account_info, AccountInfo},
@@ -42,7 +44,7 @@ pub(super) fn process_repay_obligation_liquidity(
         return Err(LendingError::InvalidTokenProgram.into());
     }
 
-    let repay_reserve = Reserve::unpack(&repay_reserve_info.data.borrow())?;
+    let mut repay_reserve = Reserve::unpack(&repay_reserve_info.data.borrow())?;
     if repay_reserve_info.owner != program_id {
         msg!("Repay reserve provided is not owned by the lending program");
         return Err(LendingError::InvalidAccountOwner.into());
@@ -63,7 +65,7 @@ pub(super) fn process_repay_obligation_liquidity(
         msg!("Repay reserve is stale and must be refreshed in the current slot");
         return Err(LendingError::ReserveStale.into());
     }
-    let obligation = Obligation::unpack(&obligation_info.data.borrow())?;
+    let mut obligation = Obligation::unpack(&obligation_info.data.borrow())?;
     if obligation_info.owner != program_id {
         msg!("Obligation provided is not owned by the lending program");
         return Err(LendingError::InvalidAccountOwner.into());
@@ -76,7 +78,36 @@ pub(super) fn process_repay_obligation_liquidity(
         msg!("Obligation is stale and must be refreshed in the current slot");
         return Err(LendingError::ObligationStale.into());
     }
+
     let (liquidity, liquidity_index) =
         obligation.find_liquidity_in_borrows(*repay_reserve_info.key)?;
+    if liquidity.borrowed_amount_wads == Decimal::zero() {
+        msg!("Liquidity borrowed amount is zero");
+        return Err(LendingError::ObligationLiquidityEmpty.into());
+    }
+    let CalculateRepayResult {
+        settle_amount,
+        repay_amount,
+    } = repay_reserve.calculate_repay(liquidity_amount, liquidity.borrowed_amount_wads)?;
+    if repay_amount == 0 {
+        msg!("Repay amount is zero");
+        return Err(LendingError::RepayTooSmall.into());
+    }
+    repay_reserve.liquidity.repay(repay_amount, settle_amount)?;
+    repay_reserve.last_update.mark_stale();
+    Reserve::pack(repay_reserve, &mut repay_reserve_info.data.borrow_mut())?;
+
+    obligation.repay(settle_amount, liquidity_index)?;
+    obligation.last_update.mark_stale();
+    Obligation::pack(obligation, &mut obligation_info.data.borrow_mut())?;
+
+    spl_token_transfer(TokenTransferParams {
+        source: source_liquidity_info.clone(),
+        destination: destination_liquidity_info.clone(),
+        amount: repay_amount,
+        authority: user_transfer_authority_info.clone(),
+        authority_signer_seeds: &[],
+        token_program: token_program_id.clone(),
+    })?;
     Ok(())
 }

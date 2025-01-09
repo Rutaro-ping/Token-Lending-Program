@@ -159,6 +159,9 @@ impl LendingInstruction {
                 buf.push(14);
                 Self::extend_buffer_from_reserve_config(&mut buf, &new_config);
             }
+            _ => {
+                unreachable!()
+            }
         }
 
         buf

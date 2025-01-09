@@ -1,6 +1,5 @@
 use {
-    crate::{error::LendingError, state::Reserve},
-    solana_program::{
+    super::get_pyth_price, crate::{error::LendingError, state::Reserve}, solana_program::{
         account_info::{next_account_info, AccountInfo},
         clock::Clock,
         entrypoint::ProgramResult,
@@ -8,7 +7,7 @@ use {
         program_pack::Pack,
         pubkey::Pubkey,
         sysvar::Sysvar,
-    },
+    }
 };
 pub(super) fn process_refresh_reserve(
     program_id: &Pubkey,
@@ -27,8 +26,8 @@ pub(super) fn process_refresh_reserve(
         msg!("Reserve liquidity oracle does not match the reserve liquidity oracle provided");
         return Err(LendingError::InvalidAccountInput.into());
     }
-    // reserve.liquidity.market_price =
-    // get_pyth_price(reserve_liquidity_oracle_info, clock)?;//todo
+    reserve.liquidity.market_price =
+    get_pyth_price(reserve_liquidity_oracle_info, clock)?;
     reserve.accrue_interest(clock.slot)?;
     reserve.last_update.update_slot(clock.slot);
 

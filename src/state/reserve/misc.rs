@@ -19,6 +19,27 @@ pub struct CalculateBorrowResult {
     pub host_fee: u64,
 }
 
+/// Calculate repay result
+#[derive(Debug)]
+pub struct CalculateRepayResult {
+    /// Amount of liquidity that is settled from the obligation.
+    pub settle_amount: Decimal,
+    /// Amount that will be repaid as u64
+    pub repay_amount: u64,
+}
+
+/// Calculate liquidation result
+#[derive(Debug)]
+pub struct CalculateLiquidationResult {
+    /// Amount of liquidity that is settled from the obligation. It includes
+    /// the amount of loan that was defaulted if collateral is depleted.
+    pub settle_amount: Decimal,
+    /// Amount that will be repaid as u64
+    pub repay_amount: u64,
+    /// Amount of collateral to withdraw in exchange for repay amount
+    pub withdraw_amount: u64,
+}
+
 /// Reserve configuration values
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct ReserveConfig {

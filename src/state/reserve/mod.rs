@@ -70,12 +70,27 @@ impl Reserve {
         Ok(liquididy_amount)
     }
 
-    /// Calculate the current borrow rate
+    //*
+    //* Calculate the current borrow rate
+    //*  This design uses Piecewise Function to encourage:
+    //* 1. When utilization is low: Gentle rate increases to encourage borrowing
+    //* 2. When utilization is high: Sharp rate increases to discourage borrowing and protect the liquidity pool
+    //*
     pub fn current_borrow_rate(&self) -> Result<Rate, ProgramError> {
         let utilization_rate = self.liquidity.utilization_rate()?;
         let optimal_utilization_rate = Rate::from_percent(self.config.optimal_utilization_rate);
+
+        //low utilization is when the utilization rate is less than the optimal utilization rate.
+
         let low_utilization = utilization_rate < optimal_utilization_rate;
+
+        // When it's low utilization:
+        //* `borrow_rate = normalized_rate * rate_range + min_rate`.
+        //* where:
+        //* normalized_rate = utilization_rate / optimal_utilization_rate
+        
         if low_utilization || self.config.optimal_utilization_rate == 100 {
+            //normalized rate is how much the utilization rate is close to the optimal utilization rate.
             let normalized_rate = utilization_rate.try_div(optimal_utilization_rate)?;
             let min_rate = Rate::from_percent(self.config.min_borrow_rate);
             let rate_range = Rate::from_percent(
@@ -87,6 +102,10 @@ impl Reserve {
 
             Ok(normalized_rate.try_mul(rate_range)?.try_add(min_rate)?)
         } else {
+          
+            //* When is high utilization: borrow_rate = normalized_rate * rate_range + min_rate.
+            //* where:
+            //* normalized_rate = (utilization_rate - optimal_utilization_rate) / (100 - optimal_utilization_rate)
             let normalized_rate = utilization_rate
                 .try_sub(optimal_utilization_rate)?
                 .try_div(Rate::from_percent(
@@ -172,6 +191,22 @@ impl Reserve {
                 host_fee,
             })
         }
+    }
+    pub fn calculate_repay(
+        &self,
+        amount_to_repay: u64,
+        borrowed_amount: Decimal,
+    ) -> Result<CalculateRepayResult, ProgramError> {
+        let settle_amount = if amount_to_repay == u64::MAX {
+            borrowed_amount
+        } else {
+            Decimal::from(amount_to_repay).min(borrowed_amount)
+        };
+        let repay_amount = settle_amount.try_ceil_u64()?;
+        Ok(CalculateRepayResult {
+            settle_amount,
+            repay_amount,
+        })
     }
 }
 
