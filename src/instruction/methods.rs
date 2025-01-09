@@ -11,6 +11,7 @@ use {
         program_error::ProgramError,
         pubkey::{Pubkey, PUBKEY_BYTES},
     },
+    std::mem::size_of,
 };
 
 impl LendingInstruction {

@@ -127,7 +127,9 @@ async fn test_success() {
     );
 
     transaction.sign(&[&payer], recent_blockhash);
-    assert!(banks_client.process_transaction(transaction).await.is_ok());
+    let result = banks_client.process_transaction(transaction).await;
+    println!("result: {:?}", result);
+    assert!(result.is_ok());
 
     let sol_reserve = sol_test_reserve.get_state(&mut banks_client).await;
     let usdc_reserve = usdc_test_reserve.get_state(&mut banks_client).await;

@@ -1,8 +1,9 @@
 use {
+    super::{spl_token_transfer, TokenTransferParams},
     crate::{
         error::LendingError,
         math::Decimal,
-        state::{LendingMarket, Obligation, Reserve},
+        state::{CalculateLiquidationResult, LendingMarket, Obligation, Reserve},
     },
     solana_program::{
         account_info::{next_account_info, AccountInfo},
@@ -150,15 +151,49 @@ pub(super) fn process_liquidate_obligation(
         );
         return Err(LendingError::InvalidMarketAuthority.into());
     }
-    // let CalculateLiquidationResult {
-    //     settle_amount,
-    //     repay_amount,
-    //     withdraw_amount,
-    // } = withdraw_reserve.calculate_liquidation(
-    //     liquidity_amount,
-    //     &obligation,
-    //     liquidity,
-    //     collateral,
-    // )?;
+    let CalculateLiquidationResult {
+        settle_amount,
+        repay_amount,
+        withdraw_amount,
+    } = withdraw_reserve.calculate_liquidation(
+        liquidity_amount,
+        &obligation,
+        liquidity,
+        collateral,
+    )?;
+    if repay_amount == 0 {
+        msg!("Liquidation is too small to transfer liquidity");
+        return Err(LendingError::LiquidationTooSmall.into());
+    }
+    if withdraw_amount == 0 {
+        msg!("Liquidation is too small to receive collateral");
+        return Err(LendingError::LiquidationTooSmall.into());
+    }
+    repay_reserve.liquidity.repay(repay_amount, settle_amount)?;
+    repay_reserve.last_update.mark_stale();
+    Reserve::pack(repay_reserve, &mut repay_reserve_info.data.borrow_mut())?;
+
+    obligation.repay(settle_amount, liquidity_index)?;
+    obligation.withdraw(withdraw_amount, collateral_index)?;
+    obligation.last_update.mark_stale();
+    Obligation::pack(obligation, &mut obligation_info.data.borrow_mut())?;
+
+    spl_token_transfer(TokenTransferParams {
+        source: source_liquidity_info.clone(),
+        destination: repay_reserve_liquidity_supply_info.clone(),
+        amount: repay_amount,
+        authority: user_transfer_authority_info.clone(),
+        authority_signer_seeds: &[],
+        token_program: token_program_id.clone(),
+    })?;
+
+    spl_token_transfer(TokenTransferParams {
+        source: withdraw_reserve_collateral_supply_info.clone(),
+        destination: destination_collateral_info.clone(),
+        amount: withdraw_amount,
+        authority: lending_market_authority_info.clone(),
+        authority_signer_seeds,
+        token_program: token_program_id.clone(),
+    })?;
     Ok(())
 }

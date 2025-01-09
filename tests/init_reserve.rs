@@ -18,7 +18,8 @@ use {
 };
 
 #[tokio::test]
-async fn test_success() {
+async fn 
+test_success() {
     let mut test = ProgramTest::new(
         "spl_token_lending",
         spl_token_lending::id(),

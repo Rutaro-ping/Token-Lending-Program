@@ -4,10 +4,10 @@ mod pack;
 mod test;
 
 use {
-    super::{last_update::LastUpdate, PROGRAM_VERSION},
+    super::{last_update::LastUpdate, LIQUIDATION_CLOSE_FACTOR, PROGRAM_VERSION},
     crate::{
         error::LendingError,
-        math::{Decimal, Rate, TryDiv, TrySub},
+        math::{Decimal, Rate, TryDiv, TryMul, TrySub},
     },
     solana_program::{
         clock::Slot, entrypoint::ProgramResult, msg, program_error::ProgramError, pubkey::Pubkey,
@@ -68,7 +68,7 @@ impl Obligation {
         if settle_amount == liquidity.borrowed_amount_wads {
             self.borrows.remove(liquidity_index);
         } else {
-            liquidity.repay(settle_amount);
+            liquidity.repay(settle_amount)?;
         }
         Ok(())
     }
@@ -166,6 +166,19 @@ impl Obligation {
         let collateral = ObligationCollateral::new(deposit_reserve);
         self.deposits.push(collateral);
         Ok(self.deposits.last_mut().unwrap())
+    }
+
+    /// Calculate the maximum liquidation amount for a given liquidity
+    pub fn max_liquidation_amount(
+        &self,
+        liquidity: &ObligationLiquidity,
+    ) -> Result<Decimal, ProgramError> {
+        let max_liquidation_value = self
+            .borrowed_value
+            .try_mul(Rate::from_percent(LIQUIDATION_CLOSE_FACTOR))?
+            .min(liquidity.market_value);
+        let max_liquidation_pct = max_liquidation_value.try_div(liquidity.market_value)?;
+        liquidity.borrowed_amount_wads.try_mul(max_liquidation_pct)
     }
 }
 
