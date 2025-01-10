@@ -47,14 +47,17 @@ pub fn process_instruction(
             owner,
             quote_currency,
         } => {
+            #[cfg(debug_assertions)]
             msg!("Instruction: Init Lending Market");
             process_init_lending_market(program_id, owner, quote_currency, accounts)
         }
         LendingInstruction::SetLendingMarketOwner { new_owner } => {
+            #[cfg(debug_assertions)]
             msg!("Instruction: Set Lending Market Owner");
             process_set_lending_market_owner(program_id, new_owner, accounts)
         }
         LendingInstruction::DepositReserveLiquidity { liquidity_amount } => {
+            #[cfg(debug_assertions)]
             msg!("Instruction: Deposit Reserve Liquidity");
             process_deposit_reserve_liquidity(program_id, liquidity_amount, accounts)
         }
@@ -62,27 +65,33 @@ pub fn process_instruction(
             liquidity_amount,
             config,
         } => {
+            #[cfg(debug_assertions)]
             msg!("Instruction: Init Reserve");
             process_init_reserve(program_id, liquidity_amount, config, accounts)
         }
         LendingInstruction::RefreshReserve => {
+            #[cfg(debug_assertions)]
             msg!("Instruction: Refresh Reserve");
             process_refresh_reserve(program_id, accounts)
         }
 
         LendingInstruction::InitObligation => {
+            #[cfg(debug_assertions)]
             msg!("Instruction: Init Obligation");
             process_init_obligation(program_id, accounts)
         }
         LendingInstruction::DepositObligationCollateral { collateral_amount } => {
+            #[cfg(debug_assertions)]
             msg!("Instruction: Deposit Obligation Collateral");
             process_deposit_obligation_collateral(program_id, collateral_amount, accounts)
         }
         LendingInstruction::WithdrawObligationCollateral { collateral_amount } => {
+            #[cfg(debug_assertions)]
             msg!("Instruction: Withdraw Obligation Collateral");
             process_withdraw_obligation_collateral(program_id, collateral_amount, accounts)
         }
         LendingInstruction::RefreshObligation => {
+            #[cfg(debug_assertions)]
             msg!("Instruction: Refresh Obligation");
             process_refresh_obligation(program_id, accounts)
         }
@@ -90,6 +99,7 @@ pub fn process_instruction(
             liquidity_amount,
             slippage_limit,
         } => {
+            #[cfg(debug_assertions)]
             msg!("Instruction: Borrow Obligation Liquidity");
             process_borrow_obligation_liquidity(
                 program_id,
@@ -99,18 +109,22 @@ pub fn process_instruction(
             )
         }
         LendingInstruction::LiquidateObligation { liquidity_amount } => {
+            #[cfg(debug_assertions)]
             msg!("Instruction: Liquidate Obligation");
             process_liquidate_obligation(program_id, liquidity_amount, accounts)
         }
         LendingInstruction::RepayObligationLiquidity { liquidity_amount } => {
+            #[cfg(debug_assertions)]
             msg!("Instruction: Repay Obligation Liquidity");
             process_repay_obligation_liquidity(program_id, liquidity_amount, accounts)
         }
         LendingInstruction::RedeemReserveCollateral { collateral_amount } => {
+            #[cfg(debug_assertions)]
             msg!("Instruction: Redeem Reserve Collateral");
             process_redeem_reserve_collateral(program_id, collateral_amount, accounts)
         }
         LendingInstruction::ModifyReserveConfig { new_config } => {
+            #[cfg(debug_assertions)]
             msg!("Instruction: Modify Reserve Config");
             process_modify_reserve_config(program_id, new_config, accounts)
         }

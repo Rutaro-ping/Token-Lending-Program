@@ -23,6 +23,7 @@ impl ObligationLiquidity {
     pub fn new(borrow_reserve: Pubkey) -> Self {
         Self {
             borrow_reserve,
+            cumulative_borrow_rate_wads: Decimal::one(),
             ..Default::default()
         }
     }

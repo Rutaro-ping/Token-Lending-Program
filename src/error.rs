@@ -190,3 +190,39 @@ impl PrintProgramError for LendingError {
         msg!(&self.to_string());
     }
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_decode_error() {
+        // Test successful decode
+        let error = LendingError::decode_custom_error_to_enum(0);
+        assert_eq!(error, Some(LendingError::InstructionUnpackError));
+
+        let error = LendingError::decode_custom_error_to_enum(5);
+        assert_eq!(error, Some(LendingError::InvalidAccountOwner));
+
+        // Test invalid error code returns None
+        let error: Option<LendingError> = LendingError::decode_custom_error_to_enum(1000);
+        assert_eq!(error, None);
+    }
+
+    #[test]
+    fn test_print_program_error() {
+        // Test that print doesn't panic
+        LendingError::InstructionUnpackError.print::<LendingError>();
+        LendingError::InvalidMarketAuthority.print::<LendingError>();
+        LendingError::InvalidAmount.print::<LendingError>();
+    }
+
+    #[test]
+    fn test_error_conversion() {
+        // Test conversion to ProgramError
+        let program_error: ProgramError = LendingError::InstructionUnpackError.into();
+        assert_eq!(program_error, ProgramError::Custom(0));
+
+        let program_error: ProgramError = LendingError::InvalidAccountOwner.into();
+        assert_eq!(program_error, ProgramError::Custom(5));
+    }
+}

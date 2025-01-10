@@ -14,6 +14,8 @@ use {
         sysvar::Sysvar,
     },
 };
+
+#[inline(never)]
 pub(super) fn process_refresh_obligation(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
