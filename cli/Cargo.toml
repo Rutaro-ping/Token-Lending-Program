@@ -1,0 +1,11 @@
+[package]
+edition = "2021"
+name = "solana-token-lending-cli"
+version = "0.1.0"
+
+[dependencies]
+clap = "2.33.3"
+
+[[bin]]
+name = "solana-token-lending"
+path = "src/main.rs"
