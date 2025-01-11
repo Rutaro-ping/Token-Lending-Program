@@ -7,6 +7,7 @@ use {
     helpers::*,
     solana_program_test::*,
     solana_sdk::{
+        msg,
         signature::{Keypair, Signer},
         transaction::Transaction,
     },
@@ -96,6 +97,10 @@ async fn test_success() {
     );
 
     let mut test_context = test.start_with_context().await;
+    let obligation = test_obligation
+        .get_state(&mut test_context.banks_client)
+        .await;
+    msg!("obligation before: {:#?}", obligation);
     test_context.warp_to_slot(3).unwrap(); // clock.slot = 3
 
     let ProgramTestContext {
@@ -134,7 +139,7 @@ async fn test_success() {
     let sol_reserve = sol_test_reserve.get_state(&mut banks_client).await;
     let usdc_reserve = usdc_test_reserve.get_state(&mut banks_client).await;
     let obligation = test_obligation.get_state(&mut banks_client).await;
-
+    msg!("obligation after: {:#?}", obligation);
     let collateral = &obligation.deposits[0];
     let liquidity = &obligation.borrows[0];
 

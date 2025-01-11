@@ -295,9 +295,9 @@ impl Reserve {
         }
 
         Ok(CalculateLiquidationResult {
-            settle_amount: Decimal::from(amount_to_liquidate),
-            repay_amount: amount_to_liquidate,
-            withdraw_amount: amount_to_liquidate,
+            settle_amount,
+            repay_amount,
+            withdraw_amount,
         })
     }
 }

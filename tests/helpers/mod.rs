@@ -877,11 +877,52 @@ pub struct TestObligationCollateral {
     pub deposit_reserve: Pubkey,
     pub deposited_amount: u64,
 }
+
+impl TestObligationCollateral {
+    pub async fn get_state(&self, banks_client: &mut BanksClient) -> Obligation {
+        let obligation_account: Account = banks_client
+            .get_account(self.obligation_pubkey)
+            .await
+            .unwrap()
+            .unwrap();
+        Obligation::unpack(&obligation_account.data[..]).unwrap()
+    }
+
+    pub async fn validate_state(&self, banks_client: &mut BanksClient) {
+        let obligation = self.get_state(banks_client).await;
+        assert_eq!(obligation.version, PROGRAM_VERSION);
+
+        let (collateral, _) = obligation
+            .find_collateral_in_deposits(self.deposit_reserve)
+            .unwrap();
+        assert_eq!(collateral.deposited_amount, self.deposited_amount);
+    }
+}
 #[derive(Debug)]
 pub struct TestObligationLiquidity {
     pub obligation_pubkey: Pubkey,
     pub borrow_reserve: Pubkey,
     pub borrowed_amount_wads: Decimal,
+}
+
+impl TestObligationLiquidity {
+    pub async fn get_state(&self, banks_client: &mut BanksClient) -> Obligation {
+        let obligation: Account = banks_client
+            .get_account(self.obligation_pubkey)
+            .await
+            .unwrap()
+            .unwrap();
+        Obligation::unpack(&obligation.data).unwrap()
+    }
+    pub async fn validate_state(&self, banks_client: &mut BanksClient) {
+        let obligation = self.get_state(banks_client).await;
+        assert_eq!(obligation.version, PROGRAM_VERSION);
+        let (liquidity, _) = obligation
+            .find_liquidity_in_borrows(self.borrow_reserve)
+            .unwrap();
+        assert!(liquidity.cumulative_borrow_rate_wads >= Decimal::one());
+        assert!(liquidity.borrowed_amount_wads >= self.borrowed_amount_wads);
+    }
 }
 
 #[derive(Debug)]

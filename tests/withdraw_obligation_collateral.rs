@@ -81,8 +81,8 @@ async fn test_withdraw_fixed_amount() {
     let (mut banks_client, payer, recent_blockhash) = test.start().await;
 
     test_obligation.validate_state(&mut banks_client).await;
-    // test_collateral.validate_state(&mut banks_client).await;
-    // test_liquidity.validate_state(&mut banks_client).await;
+    test_collateral.validate_state(&mut banks_client).await;
+    test_liquidity.validate_state(&mut banks_client).await;
     let initial_collateral_supply_balance =
         get_token_balance(&mut banks_client, sol_test_reserve.collateral_supply_pubkey).await;
     let initial_user_collateral_balance =
