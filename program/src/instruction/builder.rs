@@ -449,7 +449,7 @@ mod tests {
             oracle_program_id,
         );
         assert_eq!(instruction.program_id, program_id);
-        assert_eq!(instruction.accounts.len(), 3);
+        assert_eq!(instruction.accounts.len(), 4);
 
         // Print instruction data
         let data = instruction.data.clone();

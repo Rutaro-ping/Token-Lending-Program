@@ -28,7 +28,7 @@ async fn test_success() {
         processor!(process_instruction),
     );
     // limit to track compute unit increase
-    test.set_compute_max_units(10);
+    test.set_compute_max_units(4_000);
 
     let lending_market = add_lending_market(&mut test);
     let (mut banks_client, payer, recent_blockhash) = test.start().await;

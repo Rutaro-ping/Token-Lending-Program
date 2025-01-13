@@ -10,7 +10,6 @@ use {
     solana_program_test::*,
     solana_sdk::{
         instruction::InstructionError,
-        msg,
         signature::{Keypair, Signer},
         transaction::{Transaction, TransactionError},
     },

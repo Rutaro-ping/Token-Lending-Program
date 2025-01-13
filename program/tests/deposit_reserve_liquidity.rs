@@ -8,7 +8,7 @@ use {
         AddReserveArgs, FRACTIONAL_TO_USDC, TEST_RESERVE_CONFIG,
     },
     solana_program_test::*,
-    solana_sdk::{msg, signature::Keypair},
+    solana_sdk::signature::Keypair,
     spl_token_lending::processor::process_instruction,
 };
 

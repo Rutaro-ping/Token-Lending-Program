@@ -7,7 +7,9 @@ use {
     helpers::*,
     solana_program_test::*,
     solana_sdk::{
-        msg, signature::{Keypair, Signer}, transaction::Transaction
+        msg,
+        signature::{Keypair, Signer},
+        transaction::Transaction,
     },
     spl_token_lending::{
         instruction::builder::{refresh_obligation, refresh_reserve},
