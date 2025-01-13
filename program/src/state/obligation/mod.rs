@@ -74,7 +74,11 @@ impl Obligation {
     }
     pub fn withdraw(&mut self, withdraw_amount: u64, collateral_index: usize) -> ProgramResult {
         let collateral = &mut self.deposits.get_mut(collateral_index).unwrap();
-        collateral.withdraw(withdraw_amount)?;
+        if withdraw_amount == collateral.deposited_amount {
+            self.deposits.remove(collateral_index);
+        } else {
+            collateral.withdraw(withdraw_amount)?;
+        }
         Ok(())
     }
 

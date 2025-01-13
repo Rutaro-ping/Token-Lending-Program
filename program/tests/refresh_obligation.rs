@@ -7,9 +7,7 @@ use {
     helpers::*,
     solana_program_test::*,
     solana_sdk::{
-        msg,
-        signature::{Keypair, Signer},
-        transaction::Transaction,
+        msg, signature::{Keypair, Signer}, transaction::Transaction
     },
     spl_token_lending::{
         instruction::builder::{refresh_obligation, refresh_reserve},
@@ -139,7 +137,6 @@ async fn test_success() {
     let sol_reserve = sol_test_reserve.get_state(&mut banks_client).await;
     let usdc_reserve = usdc_test_reserve.get_state(&mut banks_client).await;
     let obligation = test_obligation.get_state(&mut banks_client).await;
-    msg!("obligation after: {:#?}", obligation);
     let collateral = &obligation.deposits[0];
     let liquidity = &obligation.borrows[0];
 

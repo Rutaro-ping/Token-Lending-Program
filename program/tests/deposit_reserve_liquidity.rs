@@ -76,7 +76,6 @@ async fn test_success() {
     .await;
 
     let reserve_state_after = usdc_test_reserve.get_state(&mut banks_client).await;
-    msg!("reserve_state_after: {:#?}", reserve_state_after);
     assert_eq!(
         initial_user_liquidity_balance - 100 * FRACTIONAL_TO_USDC,
         final_user_liquidity_balance
