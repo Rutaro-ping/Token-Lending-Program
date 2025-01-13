@@ -261,6 +261,8 @@ pub fn add_usdc_mint(test: &mut ProgramTest) -> TestMint {
         decimals,
     }
 }
+
+#[derive(Debug)]
 pub struct TestOracle {
     pub product_pubkey: Pubkey,
     pub price_pubkey: Pubkey,

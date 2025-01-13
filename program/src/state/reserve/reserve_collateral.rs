@@ -1,12 +1,12 @@
-use solana_program::{entrypoint::ProgramResult, program_error::ProgramError, pubkey::Pubkey};
-
-use crate::{
-    error::LendingError,
-    math::{Decimal, Rate, TryDiv},
-    state::INITIAL_COLLATERAL_RATE,
+use {
+    super::CollateralExchangeRate,
+    crate::{
+        error::LendingError,
+        math::{Decimal, Rate, TryDiv},
+        state::INITIAL_COLLATERAL_RATE,
+    },
+    solana_program::{entrypoint::ProgramResult, program_error::ProgramError, pubkey::Pubkey},
 };
-
-use super::CollateralExchangeRate;
 
 /// Reserve collateral
 #[derive(Clone, Debug, Default, PartialEq)]

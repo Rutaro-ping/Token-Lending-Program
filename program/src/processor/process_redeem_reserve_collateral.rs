@@ -1,13 +1,19 @@
-use solana_program::account_info::next_account_info;
-use solana_program::clock::Clock;
-use solana_program::program_pack::Pack;
-use solana_program::sysvar::Sysvar;
-use solana_program::{account_info::AccountInfo, entrypoint::ProgramResult, msg, pubkey::Pubkey};
-
-use crate::error::LendingError;
-use crate::state::{LendingMarket, Reserve};
-
-use super::{spl_token_burn, spl_token_transfer, TokenBurnParams, TokenTransferParams};
+use {
+    super::{spl_token_burn, spl_token_transfer, TokenBurnParams, TokenTransferParams},
+    crate::{
+        error::LendingError,
+        state::{LendingMarket, Reserve},
+    },
+    solana_program::{
+        account_info::{next_account_info, AccountInfo},
+        clock::Clock,
+        entrypoint::ProgramResult,
+        msg,
+        program_pack::Pack,
+        pubkey::Pubkey,
+        sysvar::Sysvar,
+    },
+};
 
 pub(super) fn process_redeem_reserve_collateral(
     program_id: &Pubkey,

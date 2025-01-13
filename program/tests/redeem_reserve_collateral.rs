@@ -2,14 +2,19 @@
 
 mod helpers;
 
-use helpers::{
-    add_lending_market, add_reserve, add_usdc_mint, add_usdc_oracle, AddReserveArgs,
-    FRACTIONAL_TO_USDC, TEST_RESERVE_CONFIG,
+use {
+    helpers::{
+        add_lending_market, add_reserve, add_usdc_mint, add_usdc_oracle, AddReserveArgs,
+        FRACTIONAL_TO_USDC, TEST_RESERVE_CONFIG,
+    },
+    solana_program_test::*,
+    solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction},
+    spl_token::instruction::approve,
+    spl_token_lending::{
+        instruction::builder::redeem_reserve_collateral, processor::process_instruction,
+        state::INITIAL_COLLATERAL_RATIO,
+    },
 };
-use solana_program_test::*;
-use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
-use spl_token::instruction::approve;
-use spl_token_lending::{instruction::builder::redeem_reserve_collateral, processor::process_instruction, state::INITIAL_COLLATERAL_RATIO};
 
 #[tokio::test]
 async fn test_success() {
