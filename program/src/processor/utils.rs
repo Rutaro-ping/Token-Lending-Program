@@ -1,6 +1,5 @@
 use {
     crate::error::LendingError,
-    solana_program::sysvar::Sysvar,
     solana_program::{
         account_info::AccountInfo,
         entrypoint::ProgramResult,
@@ -8,6 +7,7 @@ use {
         program_error::ProgramError,
         program_pack::{IsInitialized, Pack},
         rent::Rent,
+        sysvar::Sysvar,
     },
 };
 

@@ -1,9 +1,9 @@
 #![cfg(feature = "test-sbf")]
 mod helpers;
-use solana_program_test::*;
-use spl_token_lending::processor::process_instruction;
-
-use helpers::TestLendingMarket;
+use {
+    helpers::TestLendingMarket, solana_program_test::*,
+    spl_token_lending::processor::process_instruction,
+};
 
 #[tokio::test]
 async fn test_success() {
