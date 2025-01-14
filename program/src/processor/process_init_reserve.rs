@@ -6,6 +6,7 @@ use {
         TokenTransferParams,
     },
     crate::{
+        assert_equal, assert_is_signer, assert_key_equal, assert_key_not_equal,
         error::LendingError,
         pyth,
         state::{
@@ -58,69 +59,89 @@ pub(super) fn process_init_reserve(
     let token_program_id = next_account_info(account_info_iter)?;
     assert_rent_exempt(rent, reserve_info)?;
     let mut reserve = assert_uninitialized::<Reserve>(reserve_info)?;
-    if reserve_info.owner != program_id {
-        msg!("Reserve provided is not owned by the lending program");
-        return Err(LendingError::InvalidAccountOwner.into());
-    }
-    if reserve_liquidity_supply_info.key == source_liquidity_info.key {
-        msg!("Reserve liquidity supply cannot be used as the source liquidity provided");
-        return Err(LendingError::InvalidAccountInput.into());
-    }
+    assert_key_equal!(
+        reserve_info.owner,
+        program_id,
+        "Reserve provided is not owned by the lending program",
+        LendingError::InvalidAccountOwner
+    );
+    assert_key_not_equal!(
+        reserve_liquidity_supply_info.key,
+        source_liquidity_info.key,
+        "Reserve liquidity supply cannot be used as the source liquidity provided",
+        LendingError::InvalidAccountInput
+    );
     let lending_market = LendingMarket::unpack(&lending_market_info.data.borrow())?;
-    if lending_market_info.owner != program_id {
-        msg!("Lending market provided is not owned by the lending program");
-        return Err(LendingError::InvalidAccountOwner.into());
-    }
-    if &lending_market.token_program_id != token_program_id.key {
-        msg!("Lending market token program does not match the token program provided");
-        return Err(LendingError::InvalidTokenProgram.into());
-    }
-    if &lending_market.owner != lending_market_owner_info.key {
-        msg!("Lending market owner does not match the lending market owner provided");
-        return Err(LendingError::InvalidMarketOwner.into());
-    }
-    if !lending_market_owner_info.is_signer {
-        msg!("Lending market owner provided must be a signer");
-        return Err(LendingError::InvalidSigner.into());
-    }
-
-    if &lending_market.oracle_program_id != pyth_product_info.owner {
-        msg!("Pyth product account provided is not owned by the lending market oracle program");
-        return Err(LendingError::InvalidOracleConfig.into());
-    }
-    if &lending_market.oracle_program_id != pyth_price_info.owner {
-        msg!("Pyth price account provided is not owned by the lending market oracle program");
-        return Err(LendingError::InvalidOracleConfig.into());
-    }
+    assert_key_equal!(
+        lending_market_info.owner,
+        program_id,
+        "Lending market provided is not owned by the lending program",
+        LendingError::InvalidAccountOwner
+    );
+    assert_key_equal!(
+        &lending_market.token_program_id,
+        token_program_id.key,
+        "Lending market token program does not match the token program provided",
+        LendingError::InvalidTokenProgram
+    );
+    assert_key_equal!(
+        &lending_market.owner,
+        lending_market_owner_info.key,
+        "Lending market owner does not match the lending market owner provided",
+        LendingError::InvalidMarketOwner
+    );
+    assert_is_signer!(lending_market_owner_info, "Lending market owner provided");
+    assert_key_equal!(
+        &lending_market.oracle_program_id,
+        pyth_product_info.owner,
+        "Pyth product account provided is not owned by the lending market oracle program",
+        LendingError::InvalidOracleConfig
+    );
+    assert_key_equal!(
+        &lending_market.oracle_program_id,
+        pyth_price_info.owner,
+        "Pyth price account provided is not owned by the lending market oracle program",
+        LendingError::InvalidOracleConfig
+    );
     let pyth_product_data = pyth_product_info.try_borrow_data()?;
     let pyth_product = pyth::load::<pyth::Product>(&pyth_product_data)
         .map_err(|_| ProgramError::InvalidAccountData)?;
-    if pyth_product.magic != pyth::MAGIC {
-        msg!("Pyth product account provided is not a valid Pyth account");
-        return Err(LendingError::InvalidOracleConfig.into());
-    }
-    if pyth_product.ver != pyth::VERSION_2 {
-        msg!("Pyth product account provided has a different version than expected");
-        return Err(LendingError::InvalidOracleConfig.into());
-    }
-    if pyth_product.atype != pyth::AccountType::Product as u32 {
-        msg!("Pyth product account provided is not a valid Pyth product account");
-        return Err(LendingError::InvalidOracleConfig.into());
-    }
+    assert_equal!(
+        pyth_product.magic,
+        pyth::MAGIC,
+        "Pyth product account provided is not a valid Pyth account",
+        LendingError::InvalidOracleConfig
+    );
+    assert_equal!(
+        pyth_product.ver,
+        pyth::VERSION_2,
+        "Pyth product account provided has a different version than expected",
+        LendingError::InvalidOracleConfig
+    );
+    assert_equal!(
+        pyth_product.atype,
+        pyth::AccountType::Product as u32,
+        "Pyth product account provided is not a valid Pyth product account",
+        LendingError::InvalidOracleConfig
+    );
     let pyth_price_pubkey_bytes: &[u8; 32] = pyth_price_info
         .key
         .as_ref()
         .try_into()
         .map_err(|_| LendingError::InvalidAccountInput)?;
-    if &pyth_product.px_acc.val != pyth_price_pubkey_bytes {
-        msg!("Pyth product price account does not match the Pyth price provided");
-        return Err(LendingError::InvalidOracleConfig.into());
-    }
+    assert_equal!(
+        &pyth_product.px_acc.val,
+        pyth_price_pubkey_bytes,
+        "Pyth product price account does not match the Pyth price provided",
+        LendingError::InvalidOracleConfig
+    );
     let quote_currency = get_pyth_product_quote_currency(pyth_product)?;
-    if lending_market.quote_currency != quote_currency {
-        msg!("Lending market quote currency does not match the oracle quote currency");
-        return Err(LendingError::InvalidOracleConfig.into());
-    }
+    assert_equal!(
+        lending_market.quote_currency,
+        quote_currency,
+        "Lending market quote currency does not match the oracle quote currency",
+        LendingError::InvalidOracleConfig
+    );
 
     let market_price = get_pyth_price(pyth_price_info, clock)?;
     let authority_signer_seeds = &[
@@ -129,12 +150,12 @@ pub(super) fn process_init_reserve(
     ];
     let lending_market_authority_pubkey =
         Pubkey::create_program_address(authority_signer_seeds, program_id)?;
-    if &lending_market_authority_pubkey != lending_market_authority_info.key {
-        msg!(
-            "Derived lending market authority does not match the lending market authority provided"
-        );
-        return Err(LendingError::InvalidMarketAuthority.into());
-    }
+    assert_key_equal!(
+        &lending_market_authority_pubkey,
+        lending_market_authority_info.key,
+        "Derived lending market authority does not match the lending market authority provided",
+        LendingError::InvalidMarketAuthority
+    );
 
     let reserve_liquidity_mint = unpack_mint(&reserve_liquidity_mint_info.data.borrow())?;
     if reserve_liquidity_mint_info.owner != token_program_id.key {
