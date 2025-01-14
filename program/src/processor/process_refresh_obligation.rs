@@ -3,6 +3,8 @@ use {
         error::LendingError,
         math::{Decimal, Rate, TryAdd, TryDiv, TryMul},
         state::{Obligation, Reserve},
+        utils::get_pow,
+        // utils::get_pow,
     },
     solana_program::{
         account_info::{next_account_info, AccountInfo},
@@ -56,11 +58,8 @@ pub(super) fn process_refresh_obligation(
           );
             return Err(LendingError::ReserveStale.into());
         }
-        // @TODO: add lookup table https://git.io/JOCYq
-        let decimals = 10u64
-            .checked_pow(deposit_reserve.liquidity.mint_decimals as u32)
-            .ok_or(LendingError::MathOverflow)?;
 
+        let decimals = get_pow(deposit_reserve.liquidity.mint_decimals as u32)?;
         let market_value = deposit_reserve
             .collateral_exchange_rate()?
             .decimal_collateral_to_liquidity(collateral.deposited_amount.into())?
@@ -105,11 +104,7 @@ pub(super) fn process_refresh_obligation(
 
         liquidity.accrue_interest(borrow_reserve.liquidity.cumulative_borrow_rate_wads)?;
 
-        // @TODO: add lookup table https://git.io/JOCYq
-        let decimals = 10u64
-            .checked_pow(borrow_reserve.liquidity.mint_decimals as u32)
-            .ok_or(LendingError::MathOverflow)?;
-
+        let decimals = get_pow(borrow_reserve.liquidity.mint_decimals as u32)?;
         let market_value = liquidity
             .borrowed_amount_wads
             .try_mul(borrow_reserve.liquidity.market_price)?

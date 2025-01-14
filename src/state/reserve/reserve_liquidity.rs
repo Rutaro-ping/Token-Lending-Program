@@ -1,8 +1,7 @@
 use {
     crate::{
         error::LendingError,
-        math::{Decimal, Rate, TryAdd, TryDiv, TryMul, TrySub},
-        state::SLOTS_PER_YEAR,
+        math::{Decimal, Rate, TryAdd, TryDiv, TryMul, TrySub}, state::SLOTS_PER_YEAR,
     },
     solana_program::{entrypoint::ProgramResult, msg, program_error::ProgramError, pubkey::Pubkey},
 };

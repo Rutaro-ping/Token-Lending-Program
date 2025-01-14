@@ -1,3 +1,27 @@
+use {
+    crate::{
+        constants::{DECIMALS_LOOKUP, MAX_DECIMALS},
+        error::LendingError,
+    },
+    solana_program::msg,
+};
+
+/**
+ * Lookup the power of 10 for a given number of decimals from a static map
+ * `DECIMALS_LOOKUP`.
+ *
+ * @param decimals - The number of decimals to lookup.
+ * @returns The power of 10 for the given number of decimals.
+ */
+#[inline(always)]
+pub(crate) fn get_pow(decimals: u32) -> Result<u64, LendingError> {
+    if decimals > MAX_DECIMALS {
+        msg!("decimals {} cannot larger than {}", decimals, MAX_DECIMALS);
+        return Err(LendingError::MathOverflow);
+    }
+    Ok(DECIMALS_LOOKUP[decimals as usize])
+}
+
 #[macro_export]
 macro_rules! assert_is_signer {
     ($signer:expr, $msg_prefix:expr) => {
@@ -9,12 +33,12 @@ macro_rules! assert_is_signer {
 }
 
 /**
- * Assert that an operation on two values is true, otherwise return the privided error and using msg! to log the provided message.
- *
- * ```rust
- * assert_compare!(a, >, b, "a must be greater than b", LendingError::InvalidOperation);
- * ```
- */
+* Assert that an operation on two values is true, otherwise return the privided error and using msg! to log the provided message.
+*
+
+* assert_compare!(a, >, b, "a must be greater than b", LendingError::InvalidOperation);
+
+*/
 #[macro_export]
 macro_rules! assert_compare {
     // For direct comparisons with custom operator

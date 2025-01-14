@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc f2dc644693edf4aea46a19af9565ddef14c87d337b5bd7f655cda416453b7df8 # shrinks to slots_elapsed = 19, borrow_rate = 0
+cc 38822bc831535a45a7f230a540aa736017220d1a249a957345df888dd8e19d2f # shrinks to total_liquidity = 1, borrowed_percent = 1, collateral_multiplier = 500000000000000000, borrow_rate = 0

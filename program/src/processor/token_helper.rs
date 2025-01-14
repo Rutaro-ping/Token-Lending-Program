@@ -3,6 +3,7 @@ use {
         error::LendingError,
         math::{Decimal, TryDiv, TryMul},
         pyth,
+        utils::get_pow,
     },
     solana_program::{
         account_info::AccountInfo,
@@ -143,9 +144,7 @@ pub(super) fn get_pyth_price(
             .expo
             .try_into()
             .map_err(|_| LendingError::MathOverflow)?;
-        let zeros = 10u64
-            .checked_pow(exponent)
-            .ok_or(LendingError::MathOverflow)?;
+        let zeros = get_pow(exponent)?;
         Decimal::from(price).try_mul(zeros)?
     } else {
         let exponent = pyth_price
@@ -154,9 +153,7 @@ pub(super) fn get_pyth_price(
             .ok_or(LendingError::MathOverflow)?
             .try_into()
             .map_err(|_| LendingError::MathOverflow)?;
-        let decimals = 10u64
-            .checked_pow(exponent)
-            .ok_or(LendingError::MathOverflow)?;
+        let decimals = get_pow(exponent)?;
         Decimal::from(price).try_div(decimals)?
     };
 

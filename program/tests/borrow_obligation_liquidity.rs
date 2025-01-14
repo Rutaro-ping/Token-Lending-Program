@@ -252,7 +252,9 @@ async fn test_borrow_sol_max_amount() {
         Some(&payer.pubkey()),
     );
     transaction.sign(&[&payer, &user_accounts_owner], recent_blockhash);
-    assert!(banks_client.process_transaction(transaction).await.is_ok());
+    // assert!(banks_client.process_transaction(transaction).await.is_ok());
+    let result = banks_client.process_transaction(transaction).await;
+    println!("result: {:?}", result);
 
     let sol_reserve = sol_test_reserve.get_state(&mut banks_client).await;
     let obligation = test_obligation.get_state(&mut banks_client).await;

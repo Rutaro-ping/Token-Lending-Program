@@ -12,6 +12,7 @@ use {
     crate::{
         error::LendingError,
         math::{Decimal, Rate, TryAdd, TryDiv, TryMul, TrySub},
+        utils::get_pow,
     },
     solana_program::{
         clock::Slot, entrypoint::ProgramResult, msg, program_error::ProgramError, pubkey::Pubkey,
@@ -157,10 +158,7 @@ impl Reserve {
         amount_to_borrow: u64,
         max_borrow_value: Decimal,
     ) -> Result<CalculateBorrowResult, ProgramError> {
-        // @TODO: add lookup table https://git.io/JOCYq
-        let decimals = 10u64
-            .checked_pow(self.liquidity.mint_decimals as u32)
-            .ok_or(LendingError::MathOverflow)?;
+        let decimals = get_pow(self.liquidity.mint_decimals as u32)?;
         if amount_to_borrow == u64::MAX {
             let borrow_amount = max_borrow_value
                 .try_mul(decimals)?
