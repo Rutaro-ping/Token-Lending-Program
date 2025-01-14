@@ -22,7 +22,6 @@ use {
         program_error::ProgramError,
         program_pack::Pack,
         pubkey::Pubkey,
-        rent::Rent,
         sysvar::Sysvar,
     },
 };
@@ -53,11 +52,8 @@ pub(super) fn process_init_reserve(
     let lending_market_authority_info = next_account_info(account_info_iter)?;
     let lending_market_owner_info = next_account_info(account_info_iter)?;
     let user_transfer_authority_info = next_account_info(account_info_iter)?;
-    let clock = &Clock::from_account_info(next_account_info(account_info_iter)?)?;
-    let rent_info = next_account_info(account_info_iter)?;
-    let rent = &Rent::from_account_info(rent_info)?;
     let token_program_id = next_account_info(account_info_iter)?;
-    assert_rent_exempt(rent, reserve_info)?;
+    assert_rent_exempt(reserve_info)?;
     let mut reserve = assert_uninitialized::<Reserve>(reserve_info)?;
     assert_key_equal!(
         reserve_info.owner,
@@ -142,8 +138,8 @@ pub(super) fn process_init_reserve(
         "Lending market quote currency does not match the oracle quote currency",
         LendingError::InvalidOracleConfig
     );
-
-    let market_price = get_pyth_price(pyth_price_info, clock)?;
+    let clock = Clock::get()?;
+    let market_price = get_pyth_price(pyth_price_info, &clock)?;
     let authority_signer_seeds = &[
         lending_market_info.key.as_ref(),
         &[lending_market.bump_seed],
@@ -185,7 +181,6 @@ pub(super) fn process_init_reserve(
         account: reserve_liquidity_supply_info.clone(),
         mint: reserve_liquidity_mint_info.clone(),
         owner: lending_market_authority_info.clone(),
-        rent: rent_info.clone(),
         token_program: token_program_id.clone(),
     })?;
 
@@ -193,14 +188,12 @@ pub(super) fn process_init_reserve(
         account: reserve_liquidity_fee_receiver_info.clone(),
         mint: reserve_liquidity_mint_info.clone(),
         owner: lending_market_authority_info.clone(),
-        rent: rent_info.clone(),
         token_program: token_program_id.clone(),
     })?;
 
     spl_token_init_mint(TokenInitializeMintParams {
         mint: reserve_collateral_mint_info.clone(),
         authority: lending_market_authority_info.key,
-        rent: rent_info.clone(),
         decimals: reserve_liquidity_mint.decimals,
         token_program: token_program_id.clone(),
     })?;
@@ -209,7 +202,6 @@ pub(super) fn process_init_reserve(
         account: reserve_collateral_supply_info.clone(),
         mint: reserve_collateral_mint_info.clone(),
         owner: lending_market_authority_info.clone(),
-        rent: rent_info.clone(),
         token_program: token_program_id.clone(),
     })?;
 
@@ -217,7 +209,6 @@ pub(super) fn process_init_reserve(
         account: destination_collateral_info.clone(),
         mint: reserve_collateral_mint_info.clone(),
         owner: user_transfer_authority_info.clone(),
-        rent: rent_info.clone(),
         token_program: token_program_id.clone(),
     })?;
 

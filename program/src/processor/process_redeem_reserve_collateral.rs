@@ -33,7 +33,6 @@ pub(super) fn process_redeem_reserve_collateral(
     let lending_market_info = next_account_info(account_info_iter)?;
     let lending_market_authority_info = next_account_info(account_info_iter)?;
     let user_transfer_authority_info = next_account_info(account_info_iter)?;
-    let clock = &Clock::from_account_info(next_account_info(account_info_iter)?)?;
     let token_program_id = next_account_info(account_info_iter)?;
     let lending_market = LendingMarket::unpack(&lending_market_info.data.borrow())?;
     if lending_market_info.owner != program_id {
@@ -73,6 +72,7 @@ pub(super) fn process_redeem_reserve_collateral(
         msg!("Reserve liquidity supply cannot be used as the destination liquidity provided");
         return Err(LendingError::InvalidAccountInput.into());
     }
+    let clock = Clock::get()?;
     if reserve.last_update.is_stale(clock.slot)? {
         msg!("Reserve is stale and must be refreshed in the current slot");
         return Err(LendingError::ReserveStale.into());

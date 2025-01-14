@@ -24,7 +24,6 @@ pub(super) fn process_refresh_obligation(
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter().peekable();
     let obligation_info = next_account_info(account_info_iter)?;
-    let clock = &Clock::from_account_info(next_account_info(account_info_iter)?)?;
     let mut obligation = Obligation::unpack(&obligation_info.data.borrow())?;
     if obligation_info.owner != program_id {
         msg!("Obligation provided is not owned by the lending program");
@@ -34,6 +33,7 @@ pub(super) fn process_refresh_obligation(
     let mut borrowed_value = Decimal::zero();
     let mut allowed_borrow_value = Decimal::zero();
     let mut unhealthy_borrow_value = Decimal::zero();
+    let clock = Clock::get()?;
     for (index, collateral) in obligation.deposits.iter_mut().enumerate() {
         let deposit_reserve_info = next_account_info(account_info_iter)?;
         if deposit_reserve_info.owner != program_id {

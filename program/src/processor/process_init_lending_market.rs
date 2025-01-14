@@ -10,8 +10,6 @@ use {
         msg,
         program_pack::Pack,
         pubkey::Pubkey,
-        rent::Rent,
-        sysvar::Sysvar,
     },
 };
 pub(super) fn process_init_lending_market(
@@ -22,11 +20,9 @@ pub(super) fn process_init_lending_market(
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
     let lending_market_info = next_account_info(account_info_iter)?;
-    // next_account_info(account_info_iter)?; //fixme: clean up this account
-    let rent = &Rent::from_account_info(next_account_info(account_info_iter)?)?;
     let token_program_id = next_account_info(account_info_iter)?;
     let oracle_program_id = next_account_info(account_info_iter)?;
-    assert_rent_exempt(rent, lending_market_info)?;
+    assert_rent_exempt(lending_market_info)?;
 
     let mut lending_market = assert_uninitialized::<LendingMarket>(lending_market_info)?;
 

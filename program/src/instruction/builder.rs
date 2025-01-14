@@ -5,7 +5,6 @@ use {
     solana_program::{
         instruction::{AccountMeta, Instruction},
         pubkey::{Pubkey, PUBKEY_BYTES},
-        sysvar,
     },
 };
 
@@ -32,7 +31,6 @@ pub fn deposit_obligation_collateral(
             AccountMeta::new_readonly(lending_market_pubkey, false),
             AccountMeta::new_readonly(obligation_owner_pubkey, true),
             AccountMeta::new_readonly(user_transfer_authority_pubkey, true),
-            AccountMeta::new_readonly(sysvar::clock::id(), false),
             AccountMeta::new_readonly(spl_token::id(), false),
         ],
         data: LendingInstruction::DepositObligationCollateral { collateral_amount }.pack(),
@@ -71,7 +69,6 @@ pub fn liquidate_obligation(
             AccountMeta::new_readonly(lending_market_pubkey, false),
             AccountMeta::new_readonly(lending_market_authority_pubkey, false),
             AccountMeta::new_readonly(user_transfer_authority_pubkey, true),
-            AccountMeta::new_readonly(sysvar::clock::id(), false),
             AccountMeta::new_readonly(spl_token::id(), false),
         ],
         data: LendingInstruction::LiquidateObligation { liquidity_amount }.pack(),
@@ -125,7 +122,6 @@ pub fn withdraw_obligation_collateral(
             AccountMeta::new_readonly(lending_market_pubkey, false),
             AccountMeta::new_readonly(lending_market_authority_pubkey, false),
             AccountMeta::new_readonly(obligation_owner_pubkey, true),
-            AccountMeta::new_readonly(sysvar::clock::id(), false),
             AccountMeta::new_readonly(spl_token::id(), false),
         ],
         data: LendingInstruction::WithdrawObligationCollateral { collateral_amount }.pack(),
@@ -147,7 +143,6 @@ pub fn init_lending_market(
         program_id,
         accounts: vec![
             AccountMeta::new(lending_market_pubkey, false),
-            AccountMeta::new_readonly(sysvar::rent::id(), false),
             AccountMeta::new_readonly(spl_token::id(), false),
             AccountMeta::new_readonly(oracle_program_id, false),
         ],
@@ -211,8 +206,6 @@ pub fn init_reserve(
         AccountMeta::new_readonly(lending_market_authority_pubkey, false),
         AccountMeta::new_readonly(lending_market_owner_pubkey, true),
         AccountMeta::new_readonly(user_transfer_authority_pubkey, true),
-        AccountMeta::new_readonly(sysvar::clock::id(), false),
-        AccountMeta::new_readonly(sysvar::rent::id(), false),
         AccountMeta::new_readonly(spl_token::id(), false),
     ];
     Instruction {
@@ -240,8 +233,6 @@ pub fn init_obligation(
             AccountMeta::new(obligation_pubkey, false),
             AccountMeta::new_readonly(lending_market_pubkey, false),
             AccountMeta::new_readonly(obligation_owner_pubkey, true),
-            AccountMeta::new_readonly(sysvar::clock::id(), false),
-            AccountMeta::new_readonly(sysvar::rent::id(), false),
             AccountMeta::new_readonly(spl_token::id(), false),
         ],
         data: LendingInstruction::InitObligation.pack(),
@@ -252,10 +243,7 @@ pub fn refresh_obligation(
     obligation_pubkey: Pubkey,
     reserve_pubkeys: Vec<Pubkey>,
 ) -> Instruction {
-    let mut accounts = vec![
-        AccountMeta::new(obligation_pubkey, false),
-        AccountMeta::new_readonly(sysvar::clock::id(), false),
-    ];
+    let mut accounts = vec![AccountMeta::new(obligation_pubkey, false)];
     accounts.extend(
         reserve_pubkeys
             .into_iter()
@@ -297,7 +285,6 @@ pub fn deposit_reserve_liquidity(
             AccountMeta::new_readonly(lending_market_pubkey, false),
             AccountMeta::new_readonly(lending_market_authority_pubkey, false),
             AccountMeta::new_readonly(user_transfer_authority_pubkey, true),
-            AccountMeta::new_readonly(sysvar::clock::id(), false),
             AccountMeta::new_readonly(spl_token::id(), false),
         ],
         data: LendingInstruction::DepositReserveLiquidity { liquidity_amount }.pack(),
@@ -331,7 +318,6 @@ pub fn borrow_obligation_liquidity(
         AccountMeta::new_readonly(lending_market_pubkey, false),
         AccountMeta::new_readonly(lending_market_authority_pubkey, false),
         AccountMeta::new_readonly(obligation_owner_pubkey, true),
-        AccountMeta::new_readonly(sysvar::clock::id(), false),
         AccountMeta::new_readonly(spl_token::id(), false),
     ];
     if let Some(host_fee_receiver_pubkey) = host_fee_receiver_pubkey {
@@ -357,7 +343,6 @@ pub fn refresh_reserve(
     let accounts = vec![
         AccountMeta::new(reserve_pubkey, false),
         AccountMeta::new(reserve_liquidity_oracle_pubkey, false),
-        AccountMeta::new_readonly(sysvar::clock::id(), false),
     ];
 
     Instruction {
@@ -387,7 +372,6 @@ pub fn repay_obligation_liquidity(
             AccountMeta::new(obligation_pubkey, false),
             AccountMeta::new_readonly(lending_market_pubkey, false),
             AccountMeta::new_readonly(user_transfer_authority_pubkey, true),
-            AccountMeta::new_readonly(sysvar::clock::id(), false),
             AccountMeta::new_readonly(spl_token::id(), false),
         ],
         data: LendingInstruction::RepayObligationLiquidity { liquidity_amount }.pack(),
@@ -422,7 +406,6 @@ pub fn redeem_reserve_collateral(
             AccountMeta::new_readonly(lending_market_pubkey, false),
             AccountMeta::new_readonly(lending_market_authority_pubkey, false),
             AccountMeta::new_readonly(user_transfer_authority_pubkey, true),
-            AccountMeta::new_readonly(sysvar::clock::id(), false),
             AccountMeta::new_readonly(spl_token::id(), false),
         ],
         data: LendingInstruction::RedeemReserveCollateral { collateral_amount }.pack(),
@@ -449,7 +432,7 @@ mod tests {
             oracle_program_id,
         );
         assert_eq!(instruction.program_id, program_id);
-        assert_eq!(instruction.accounts.len(), 4);
+        assert_eq!(instruction.accounts.len(), 3);
 
         // Print instruction data
         let data = instruction.data.clone();
@@ -492,7 +475,7 @@ mod tests {
         let instruction =
             refresh_reserve(program_id, reserve_pubkey, reserve_liquidity_oracle_pubkey);
         assert_eq!(instruction.program_id, program_id);
-        assert_eq!(instruction.accounts.len(), 3);
+        assert_eq!(instruction.accounts.len(), 2);
         assert_eq!(instruction.data, LendingInstruction::RefreshReserve.pack());
     }
 }

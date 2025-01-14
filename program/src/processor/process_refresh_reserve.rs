@@ -18,7 +18,6 @@ pub(super) fn process_refresh_reserve(
     let account_info_iter = &mut accounts.iter().peekable();
     let reserve_info = next_account_info(account_info_iter)?;
     let reserve_liquidity_oracle_info = next_account_info(account_info_iter)?;
-    let clock = &Clock::from_account_info(next_account_info(account_info_iter)?)?;
     let mut reserve = Reserve::unpack(&reserve_info.data.borrow())?;
     if reserve_info.owner != program_id {
         msg!("Reserve provided is not owned by the lending program");
@@ -28,6 +27,7 @@ pub(super) fn process_refresh_reserve(
         msg!("Reserve liquidity oracle does not match the reserve liquidity oracle provided");
         return Err(LendingError::InvalidAccountInput.into());
     }
+    let clock = &Clock::get()?;
     reserve.liquidity.market_price = get_pyth_price(reserve_liquidity_oracle_info, clock)?;
     reserve.accrue_interest(clock.slot)?;
     reserve.last_update.update_slot(clock.slot);

@@ -33,7 +33,6 @@ pub(super) fn process_deposit_obligation_collateral(
     let lending_market_info = next_account_info(account_info_iter)?;
     let obligation_owner_info = next_account_info(account_info_iter)?;
     let user_transfer_authority_info = next_account_info(account_info_iter)?;
-    let clock = &Clock::from_account_info(next_account_info(account_info_iter)?)?;
     let token_program_id = next_account_info(account_info_iter)?;
 
     let lending_market = LendingMarket::unpack(&lending_market_info.data.borrow())?;
@@ -65,6 +64,7 @@ pub(super) fn process_deposit_obligation_collateral(
         );
         return Err(LendingError::InvalidAccountInput.into());
     }
+    let clock = Clock::get()?;
     if deposit_reserve.last_update.is_stale(clock.slot)? {
         msg!("Deposit reserve is stale and must be refreshed in the current slot");
         return Err(LendingError::ReserveStale.into());

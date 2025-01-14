@@ -1,5 +1,6 @@
 use {
     crate::error::LendingError,
+    solana_program::sysvar::Sysvar,
     solana_program::{
         account_info::AccountInfo,
         entrypoint::ProgramResult,
@@ -23,7 +24,8 @@ pub(super) fn assert_uninitialized<T: IsInitialized + Pack>(
     }
 }
 
-pub(super) fn assert_rent_exempt(rent: &Rent, account_info: &AccountInfo) -> ProgramResult {
+pub(super) fn assert_rent_exempt(account_info: &AccountInfo) -> ProgramResult {
+    let rent = Rent::get()?;
     if !rent.is_exempt(account_info.lamports(), account_info.data_len()) {
         msg!(&rent.minimum_balance(account_info.data_len()).to_string());
         Err(LendingError::NotRentExempt.into())

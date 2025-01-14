@@ -169,19 +169,18 @@ pub(super) fn unpack_mint(data: &[u8]) -> Result<Mint, LendingError> {
 pub(super) fn spl_token_init_mint(params: TokenInitializeMintParams<'_, '_>) -> ProgramResult {
     let TokenInitializeMintParams {
         mint,
-        rent,
         authority,
         token_program,
         decimals,
     } = params;
-    let ix = spl_token::instruction::initialize_mint(
+    let ix = spl_token::instruction::initialize_mint2(
         token_program.key,
         mint.key,
         authority,
         None,
         decimals,
     )?;
-    let result = invoke(&ix, &[mint, rent, token_program]);
+    let result = invoke(&ix, &[mint, token_program]);
     result.map_err(|_| LendingError::TokenInitializeMintFailed.into())
 }
 
@@ -191,16 +190,15 @@ pub(super) fn spl_token_init_account(params: TokenInitializeAccountParams<'_>) -
         account,
         mint,
         owner,
-        rent,
         token_program,
     } = params;
-    let ix = spl_token::instruction::initialize_account(
+    let ix = spl_token::instruction::initialize_account3(
         token_program.key,
         account.key,
         mint.key,
         owner.key,
     )?;
-    invoke(&ix, &[account, mint, owner, rent, token_program])
+    invoke(&ix, &[account, mint, owner, token_program])
         .map_err(|_| LendingError::TokenInitializeAccountFailed.into())
 }
 
@@ -268,13 +266,11 @@ pub(super) struct TokenInitializeAccountParams<'a> {
     pub account: AccountInfo<'a>,
     pub mint: AccountInfo<'a>,
     pub owner: AccountInfo<'a>,
-    pub rent: AccountInfo<'a>,
     pub token_program: AccountInfo<'a>,
 }
 
 pub(super) struct TokenInitializeMintParams<'a: 'b, 'b> {
     pub mint: AccountInfo<'a>,
-    pub rent: AccountInfo<'a>,
     pub authority: &'b Pubkey,
     pub decimals: u8,
     pub token_program: AccountInfo<'a>,

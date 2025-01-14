@@ -33,7 +33,6 @@ pub(super) fn process_deposit_reserve_liquidity(
     let lending_market_info = next_account_info(account_info_iter)?;
     let lending_market_authority_info = next_account_info(account_info_iter)?;
     let user_transfer_authority_info = next_account_info(account_info_iter)?;
-    let clock = &Clock::from_account_info(next_account_info(account_info_iter)?)?;
     let token_program_id = next_account_info(account_info_iter)?;
 
     let lending_market = LendingMarket::unpack(&lending_market_info.data.borrow())?;
@@ -70,6 +69,7 @@ pub(super) fn process_deposit_reserve_liquidity(
         msg!("Reserve collateral supply cannot be used as the destination collateral provided");
         return Err(LendingError::InvalidAccountInput.into());
     }
+    let clock = Clock::get()?;
     if reserve.last_update.is_stale(clock.slot)? {
         msg!("Reserve is stale and must be refreshed in the current slot");
         return Err(LendingError::ReserveStale.into());

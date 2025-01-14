@@ -9,9 +9,8 @@ pub enum LendingInstruction {
     /// Accounts expected by this instruction:
     ///
     ///   0. `[writable]` Lending market account - uninitialized.
-    ///   1. `[]` Rent sysvar.
-    ///   2. `[]` Token program id.
-    ///   3. `[]` Oracle program id.
+    ///   1. `[]` Token program id.
+    ///   2. `[]` Oracle program id.
     InitLendingMarket {
         /// Owner authority which can add new reserves
         owner: Pubkey,
@@ -54,9 +53,7 @@ pub enum LendingInstruction {
     ///   11. `[]` Derived lending market authority.
     ///   12. `[signer]` Lending market owner.
     ///   13. `[signer]` User transfer authority ($authority).
-    ///   14. `[]` Clock sysvar.
-    ///   15. `[]` Rent sysvar.
-    ///   16. `[]` Token program id.
+    ///   14. `[]` Token program id.
     InitReserve {
         /// Initial amount of liquidity to deposit into the new reserve
         liquidity_amount: u64,
@@ -71,7 +68,6 @@ pub enum LendingInstruction {
     ///   0. `[writable]` Reserve account.
     ///   1. `[]` Reserve liquidity oracle account. Must be the Pyth price
     ///      account specified at InitReserve.
-    ///   2. `[]` Clock sysvar.
     RefreshReserve,
     // 4
     /// Deposit liquidity into a reserve in exchange for collateral. Collateral
@@ -88,8 +84,7 @@ pub enum LendingInstruction {
     ///   5. `[]` Lending market account.
     ///   6. `[]` Derived lending market authority.
     ///   7. `[signer]` User transfer authority ($authority).
-    ///   8. `[]` Clock sysvar.
-    ///   9. `[]` Token program id.
+    ///   8. `[]` Token program id.
     DepositReserveLiquidity {
         /// Amount of liquidity to deposit in exchange for collateral tokens
         liquidity_amount: u64,
@@ -109,8 +104,7 @@ pub enum LendingInstruction {
     ///   5. `[]` Lending market account.
     ///   6. `[]` Derived lending market authority.
     ///   7. `[signer]` User transfer authority ($authority).
-    ///   8. `[]` Clock sysvar.
-    ///   9. `[]` Token program id.
+    ///   8. `[]` Token program id.
     RedeemReserveCollateral {
         /// Amount of collateral tokens to redeem in exchange for liquidity
         collateral_amount: u64,
@@ -123,9 +117,7 @@ pub enum LendingInstruction {
     ///   0. `[writable]` Obligation account - uninitialized.
     ///   1. `[]` Lending market account.
     ///   2. `[signer]` Obligation owner.
-    ///   3. `[]` Clock sysvar.
-    ///   4. `[]` Rent sysvar.
-    ///   5. `[]` Token program id.
+    ///   3. `[]` Token program id.
     InitObligation,
     // 7
     /// Refresh an obligation's accrued interest and collateral and liquidity
@@ -136,10 +128,9 @@ pub enum LendingInstruction {
     /// Accounts expected by this instruction:
     ///
     ///   0. `[writable]` Obligation account.
-    ///   1. `[]` Clock sysvar.
-    ///   2. .. `[]` Collateral deposit reserve accounts - refreshed, all, in
+    ///   1. .. `[]` Collateral deposit reserve accounts - refreshed, all, in
     ///      order.
-    ///   3. .. `[]` Liquidity borrow reserve accounts - refreshed, all, in
+    ///   2. .. `[]` Liquidity borrow reserve accounts - refreshed, all, in
     ///      order.
     RefreshObligation,
     // 8
@@ -157,8 +148,7 @@ pub enum LendingInstruction {
     ///   4. `[]` Lending market account.
     ///   5. `[signer]` Obligation owner.
     ///   6. `[signer]` User transfer authority ($authority).
-    ///   7. `[]` Clock sysvar.
-    ///   8. `[]` Token program id.
+    ///   7. `[]` Token program id.
     DepositObligationCollateral {
         /// Amount of collateral tokens to deposit
         collateral_amount: u64,
@@ -178,8 +168,7 @@ pub enum LendingInstruction {
     ///   4. `[]` Lending market account.
     ///   5. `[]` Derived lending market authority.
     ///   6. `[signer]` Obligation owner.
-    ///   7. `[]` Clock sysvar.
-    ///   8. `[]` Token program id.
+    ///   7. `[]` Token program id.
     WithdrawObligationCollateral {
         /// Amount of collateral tokens to withdraw - u64::MAX for up to 100% of
         /// deposited amount
@@ -202,9 +191,8 @@ pub enum LendingInstruction {
     ///   5. `[]` Lending market account.
     ///   6. `[]` Derived lending market authority.
     ///   7. `[signer]` Obligation owner.
-    ///   8. `[]` Clock sysvar.
-    ///   9. `[]` Token program id.
-    ///   10. `[optional, writable]` Host fee receiver account.
+    ///   8. `[]` Token program id.
+    ///   9. `[optional, writable]` Host fee receiver account.
     BorrowObligationLiquidity {
         /// Amount of liquidity to borrow - u64::MAX for 100% of borrowing power
         liquidity_amount: u64,
@@ -226,8 +214,7 @@ pub enum LendingInstruction {
     ///   3. `[writable]` Obligation account - refreshed.
     ///   4. `[]` Lending market account.
     ///   5. `[signer]` User transfer authority ($authority).
-    ///   6. `[]` Clock sysvar.
-    ///   7. `[]` Token program id.
+    ///   6. `[]` Token program id.
     RepayObligationLiquidity {
         /// Amount of liquidity to repay - u64::MAX for 100% of borrowed amount
         liquidity_amount: u64,
@@ -251,8 +238,7 @@ pub enum LendingInstruction {
     ///   7. `[]` Lending market account.
     ///   8. `[]` Derived lending market authority.
     ///   9. `[signer]` User transfer authority ($authority).
-    ///   10. `[]` Clock sysvar.
-    ///   11. `[]` Token program id.
+    ///   10. `[]` Token program id.
     LiquidateObligation {
         /// Amount of liquidity to repay - u64::MAX for up to 100% of borrowed
         /// amount

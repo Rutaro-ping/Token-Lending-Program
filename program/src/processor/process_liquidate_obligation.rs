@@ -37,7 +37,6 @@ pub(super) fn process_liquidate_obligation(
     let lending_market_info = next_account_info(account_info_iter)?;
     let lending_market_authority_info = next_account_info(account_info_iter)?;
     let user_transfer_authority_info = next_account_info(account_info_iter)?;
-    let clock = &Clock::from_account_info(next_account_info(account_info_iter)?)?;
     let token_program_id = next_account_info(account_info_iter)?;
     let lending_market = LendingMarket::unpack(&lending_market_info.data.borrow())?;
     if lending_market_info.owner != program_id {
@@ -72,6 +71,7 @@ pub(super) fn process_liquidate_obligation(
         );
         return Err(LendingError::InvalidAccountInput.into());
     }
+    let clock = Clock::get()?;
     if repay_reserve.last_update.is_stale(clock.slot)? {
         msg!("Repay reserve is stale and must be refreshed in the current slot");
         return Err(LendingError::ReserveStale.into());

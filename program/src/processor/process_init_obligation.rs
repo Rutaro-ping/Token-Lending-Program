@@ -11,7 +11,6 @@ use {
         msg,
         program_pack::Pack,
         pubkey::Pubkey,
-        rent::Rent,
         sysvar::Sysvar,
     },
 };
@@ -24,11 +23,10 @@ pub(super) fn process_init_obligation(
     let obligation_info = next_account_info(account_info_iter)?;
     let lending_market_info = next_account_info(account_info_iter)?;
     let obligation_owner_info = next_account_info(account_info_iter)?;
-    let clock = &Clock::from_account_info(next_account_info(account_info_iter)?)?;
-    let rent = &Rent::from_account_info(next_account_info(account_info_iter)?)?;
     let token_program_id = next_account_info(account_info_iter)?;
+    let clock = Clock::get()?;
 
-    assert_rent_exempt(rent, obligation_info)?;
+    assert_rent_exempt(obligation_info)?;
 
     let mut obligation = assert_uninitialized::<Obligation>(obligation_info)?;
     if obligation_info.owner != program_id {
