@@ -32,7 +32,7 @@ pub(super) fn process_init_lending_market(
 
     if lending_market_info.owner != program_id {
         msg!("Lending market provided is not owned by the lending program");
-        return Err(LendingError::InvalidAccountOwner)?;
+        Err(LendingError::InvalidAccountOwner)?
     }
     lending_market.init(InitLendingMarketParams {
         bump_seed: Pubkey::find_program_address(&[lending_market_info.key.as_ref()], program_id).1,

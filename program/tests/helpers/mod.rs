@@ -1,12 +1,13 @@
 #![allow(dead_code)]
 
 use {
+    anyhow::Result,
     assert_matches::*,
     solana_program_test::{find_file, read_file, BanksClient, ProgramTest},
     solana_sdk::{
         account::Account,
         program_option::COption,
-        program_pack::Pack,
+        program_pack::{IsInitialized, Pack},
         pubkey::Pubkey,
         signature::{read_keypair_file, Keypair},
         signer::Signer,
@@ -63,7 +64,17 @@ pub const TEST_RESERVE_CONFIG: ReserveConfig = ReserveConfig {
         host_fee_percentage: 20,
     },
 };
-
+#[inline(always)]
+pub async fn get_state<T: Pack + IsInitialized>(
+    pub_key: Pubkey,
+    banks_client: &mut BanksClient,
+) -> Result<T> {
+    let account = banks_client
+        .get_account(pub_key)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Account not found for {}", pub_key))?;
+    Ok(T::unpack(&account.data[..])?)
+}
 pub trait AddPacked {
     fn add_packable_account<T: Pack>(
         &mut self,
@@ -214,17 +225,7 @@ impl TestLendingMarket {
     }
 
     pub async fn get_state(&self, banks_client: &mut BanksClient) -> LendingMarket {
-        let lending_market_account = banks_client
-            .get_account(self.pubkey)
-            .await
-            .unwrap()
-            .unwrap();
-        match LendingMarket::unpack(&lending_market_account.data) {
-            Ok(lending_market) => lending_market,
-            Err(e) => {
-                panic!("Failed to unpack lending market: {:?}", e.to_string());
-            }
-        }
+        get_state(self.pubkey, banks_client).await.unwrap()
     }
     pub async fn validate_state(&self, banks_client: &mut BanksClient) {
         let lending_market = self.get_state(banks_client).await;
@@ -528,12 +529,7 @@ impl TestReserve {
     }
 
     pub async fn get_state(&self, banks_client: &mut BanksClient) -> Reserve {
-        let reserve_account: Account = banks_client
-            .get_account(self.pubkey)
-            .await
-            .unwrap()
-            .unwrap();
-        Reserve::unpack(&reserve_account.data[..]).unwrap()
+        get_state(self.pubkey, banks_client).await.unwrap()
     }
 
     pub async fn validate_state(&self, banks_client: &mut BanksClient) {
@@ -882,12 +878,9 @@ pub struct TestObligationCollateral {
 
 impl TestObligationCollateral {
     pub async fn get_state(&self, banks_client: &mut BanksClient) -> Obligation {
-        let obligation_account: Account = banks_client
-            .get_account(self.obligation_pubkey)
+        get_state(self.obligation_pubkey, banks_client)
             .await
             .unwrap()
-            .unwrap();
-        Obligation::unpack(&obligation_account.data[..]).unwrap()
     }
 
     pub async fn validate_state(&self, banks_client: &mut BanksClient) {
@@ -909,12 +902,9 @@ pub struct TestObligationLiquidity {
 
 impl TestObligationLiquidity {
     pub async fn get_state(&self, banks_client: &mut BanksClient) -> Obligation {
-        let obligation: Account = banks_client
-            .get_account(self.obligation_pubkey)
+        get_state(self.obligation_pubkey, banks_client)
             .await
             .unwrap()
-            .unwrap();
-        Obligation::unpack(&obligation.data).unwrap()
     }
     pub async fn validate_state(&self, banks_client: &mut BanksClient) {
         let obligation = self.get_state(banks_client).await;
@@ -985,12 +975,7 @@ impl TestObligation {
         Ok(obligation)
     }
     pub async fn get_state(&self, banks_client: &mut BanksClient) -> Obligation {
-        let obligation: Account = banks_client
-            .get_account(self.pubkey)
-            .await
-            .unwrap()
-            .unwrap();
-        Pack::unpack(&obligation.data).unwrap()
+        get_state(self.pubkey, banks_client).await.unwrap()
     }
     pub async fn validate_state(&self, banks_client: &mut BanksClient) {
         let obligation = self.get_state(banks_client).await;

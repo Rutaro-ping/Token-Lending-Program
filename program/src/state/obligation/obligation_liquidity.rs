@@ -40,7 +40,7 @@ impl ObligationLiquidity {
         match cumulative_borrow_rate_wads.cmp(&self.cumulative_borrow_rate_wads) {
             Ordering::Less => {
                 msg!("Interest rate cannot be negative");
-                return Err(LendingError::NegativeInterestRate.into());
+                Err(LendingError::NegativeInterestRate.into())
             }
             Ordering::Equal => Ok(()),
             Ordering::Greater => {

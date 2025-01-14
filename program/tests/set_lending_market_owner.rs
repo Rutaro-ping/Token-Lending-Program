@@ -4,6 +4,7 @@
 mod helpers;
 
 use {
+    anyhow::Result,
     helpers::add_lending_market,
     solana_program_test::*,
     solana_sdk::{
@@ -92,7 +93,7 @@ async fn test_invalid_owner() {
 }
 
 #[tokio::test]
-async fn test_owner_not_signer() {
+async fn test_owner_not_signer() -> Result<()> {
     let mut test = ProgramTest::new(
         "spl_token_lending",
         spl_token_lending::id(),
@@ -114,9 +115,7 @@ async fn test_owner_not_signer() {
         }],
         Some(&payer.pubkey()),
     );
-
     transaction.sign(&[&payer], recent_blockhash);
-
     assert_eq!(
         banks_client
             .process_transaction(transaction)
@@ -128,4 +127,5 @@ async fn test_owner_not_signer() {
             InstructionError::Custom(LendingError::InvalidSigner as u32)
         )
     );
+    Ok(())
 }
