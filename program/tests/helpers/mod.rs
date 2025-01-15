@@ -127,6 +127,14 @@ pub fn add_lending_market(test: &mut ProgramTest) -> TestLendingMarket {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct MarketInitParams {
+    pub lending_market_owner: Option<Keypair>,
+    pub lending_market_keypair: Option<Keypair>,
+    pub quote_currency: Option<[u8; 32]>,
+    pub oracle_program_id: Option<Pubkey>,
+}
+
 #[derive(Debug)]
 pub struct TestLendingMarket {
     pub pubkey: Pubkey,
@@ -137,13 +145,28 @@ pub struct TestLendingMarket {
 }
 
 impl TestLendingMarket {
-    pub async fn init(banks_client: &mut BanksClient, payer: &Keypair) -> Self {
-        let lending_market_owner =
-            read_keypair_file("tests/fixtures/lending_market_owner.json").unwrap();
-        let oracle_program_id = read_keypair_file("tests/fixtures/oracle_program_id.json")
-            .unwrap()
-            .pubkey();
-        let lending_market_keypair = Keypair::new();
+    pub async fn init(
+        banks_client: &mut BanksClient,
+        payer: &Keypair,
+        params: Option<MarketInitParams>,
+    ) -> Self {
+        let MarketInitParams {
+            lending_market_owner,
+            lending_market_keypair,
+            quote_currency,
+            oracle_program_id,
+        } = params.unwrap_or_default();
+
+        let lending_market_owner = lending_market_owner.unwrap_or_else(|| {
+            read_keypair_file("tests/fixtures/lending_market_owner.json").unwrap()
+        });
+        let oracle_program_id = oracle_program_id.unwrap_or_else(|| {
+            read_keypair_file("tests/fixtures/oracle_program_id.json")
+                .unwrap()
+                .pubkey()
+        });
+        let quote_currency = quote_currency.unwrap_or(QUOTE_CURRENCY);
+        let lending_market_keypair = lending_market_keypair.unwrap_or_else(|| Keypair::new());
         let lending_market_pubkey = lending_market_keypair.pubkey();
         let (lending_market_authority, _bump_seed) = Pubkey::find_program_address(
             &[&lending_market_pubkey.to_bytes()[..32]],
@@ -162,7 +185,7 @@ impl TestLendingMarket {
                 init_lending_market(
                     spl_token_lending::id(),
                     lending_market_owner.pubkey(),
-                    QUOTE_CURRENCY,
+                    quote_currency,
                     lending_market_pubkey,
                     oracle_program_id,
                 ),
@@ -402,7 +425,8 @@ impl TestReserve {
             .await
             .unwrap()
             .unwrap();
-        let liquidity_mint = Mint::unpack(&liquidity_mint_account.data[..]).unwrap();
+
+        let liquidity_mint = Mint::unpack(&liquidity_mint_account.data).unwrap();
 
         let rent = banks_client.get_rent().await.unwrap();
         let mut transaction = Transaction::new_with_payer(

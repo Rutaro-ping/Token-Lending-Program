@@ -23,7 +23,7 @@ async fn test_success() {
     );
     test.set_compute_max_units(20_000);
     let (mut banks_client, payer, _recent_blockhash) = test.start().await;
-    let test_lending_market = TestLendingMarket::init(&mut banks_client, &payer).await;
+    let test_lending_market = TestLendingMarket::init(&mut banks_client, &payer, None).await;
     test_lending_market.validate_state(&mut banks_client).await;
 }
 
