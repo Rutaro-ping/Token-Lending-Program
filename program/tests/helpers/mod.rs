@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-
+pub(super) mod integration_utils;
 use {
     anyhow::Result,
     assert_matches::*,
