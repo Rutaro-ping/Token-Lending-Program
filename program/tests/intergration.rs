@@ -13,5 +13,4 @@ async fn integration_test() {
     test.create_init_user_supply_accounts().await;
     test.create_reserves().await;
     test.create_obligations().await;
-    
 }

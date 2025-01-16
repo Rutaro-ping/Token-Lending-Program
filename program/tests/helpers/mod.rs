@@ -882,6 +882,11 @@ pub async fn create_and_mint_to_token_account(
 
         account_pubkey
     } else {
+        assert_eq!(
+            mint_pubkey,
+            spl_token::native_mint::id(),
+            "mint_pubkey must be native mint"
+        );
         create_token_account(
             banks_client,
             mint_pubkey,
