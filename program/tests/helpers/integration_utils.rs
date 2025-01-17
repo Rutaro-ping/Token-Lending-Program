@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use solana_program_test::{processor, BanksClient, ProgramTest};
 use solana_sdk::{
     hash::Hash, msg, native_token::LAMPORTS_PER_SOL, program_pack::Pack, pubkey::Pubkey,
@@ -5,7 +7,10 @@ use solana_sdk::{
 };
 use spl_token::state::Account as TokenAccount;
 use spl_token_lending::{
-    instruction::builder::set_lending_market_owner, processor::process_instruction,
+    instruction::builder::{
+        borrow_obligation_liquidity, refresh_obligation, refresh_reserve, set_lending_market_owner,
+    },
+    processor::process_instruction,
 };
 
 use crate::helpers::{get_token_balance, MarketInitParams};
@@ -19,6 +24,11 @@ use super::{
 pub(crate) const INIT_RESERVE_SOL_AMOUNT: u64 = 10 * LAMPORTS_PER_SOL;
 pub(crate) const INIT_RESERVE_USDC_AMOUNT: u64 = 10 * FRACTIONAL_TO_USDC;
 
+pub(crate) struct Borrower {
+    pub name: &'static str,
+    pub obligation: Option<TestObligation>,
+    pub keypair: Keypair,
+}
 pub(crate) struct IntegrationTest {
     banks_client: BanksClient,
     payer: Keypair,
@@ -32,8 +42,7 @@ pub(crate) struct IntegrationTest {
     init_usdc_user_liquidity_account: Pubkey,
     sol_reserve: Option<TestReserve>,
     usdc_reserve: Option<TestReserve>,
-    bob_obligation: Option<TestObligation>,
-    alice_obligation: Option<TestObligation>,
+    borrowers: HashMap<&'static str, Borrower>,
 }
 
 impl IntegrationTest {
@@ -51,6 +60,19 @@ impl IntegrationTest {
         test.set_compute_max_units(80_000);
 
         let (banks_client, payer, recent_blockhash) = test.start().await;
+        let borrowers = ["alice", "bob"]
+            .iter()
+            .map(|name| {
+                (
+                    name.to_owned(),
+                    Borrower {
+                        name: name.to_owned(),
+                        obligation: None,
+                        keypair: Keypair::new(),
+                    },
+                )
+            })
+            .collect::<HashMap<&str, Borrower>>();
 
         IntegrationTest {
             banks_client,
@@ -66,8 +88,7 @@ impl IntegrationTest {
             init_usdc_user_liquidity_account: Pubkey::default(),
             sol_reserve: None,
             usdc_reserve: None,
-            bob_obligation: None,
-            alice_obligation: None,
+            borrowers,
         }
     }
 
@@ -190,22 +211,51 @@ impl IntegrationTest {
         .unwrap();
         self.usdc_reserve = Some(usdc_reserve);
     }
+    
+    pub async fn refresh_reserves(&mut self) {
+        let sol_reserve = self.sol_reserve.as_ref().unwrap();
+        let usdc_reserve = self.usdc_reserve.as_ref().unwrap();
+
+        let mut transaction = Transaction::new_with_payer(
+            &[
+                refresh_reserve(
+                    spl_token_lending::id(),
+                    sol_reserve.pubkey,
+                    self.sol_oracle.price_pubkey,
+                ),
+                refresh_reserve(
+                    spl_token_lending::id(),
+                    usdc_reserve.pubkey,
+                    self.usdc_oracle.price_pubkey,
+                ),
+            ],
+            Some(&self.payer.pubkey()),
+        );
+        transaction.sign(&[&self.payer], self.recent_blockhash);
+        assert!(self
+            .banks_client
+            .process_transaction(transaction)
+            .await
+            .is_ok());
+    }
     pub async fn create_obligations(&mut self) {
+        let borrower_bob = self.borrowers.get_mut("bob").unwrap();
         let lending_market = self.lending_market.as_ref().unwrap();
         let bob_obligation = TestObligation::init(
             &mut self.banks_client,
             lending_market,
-            &Keypair::new(),
+            &borrower_bob.keypair,
             &self.payer,
         )
         .await
         .unwrap();
         bob_obligation.validate_state(&mut self.banks_client).await;
-        self.bob_obligation = Some(bob_obligation);
+        borrower_bob.obligation = Some(bob_obligation);
+        let borrower_alice = self.borrowers.get_mut("alice").unwrap();
         let alice_obligation = TestObligation::init(
             &mut self.banks_client,
             lending_market,
-            &Keypair::new(),
+            &borrower_alice.keypair,
             &self.payer,
         )
         .await
@@ -213,8 +263,48 @@ impl IntegrationTest {
         alice_obligation
             .validate_state(&mut self.banks_client)
             .await;
-        let alice_obligation_state = alice_obligation.get_state(&mut self.banks_client).await;
-        msg!("alice_obligation_state: {:#?}", alice_obligation_state);
-        self.alice_obligation = Some(alice_obligation);
+        borrower_alice.obligation = Some(alice_obligation);
+    }
+
+    pub async fn borrow_obligation_liquidity(&mut self) {
+        let reserve = self.sol_reserve.as_ref().unwrap();
+        let alice_borrower = self.borrowers.get_mut("alice").unwrap();
+        let alice_obligation = alice_borrower.obligation.as_ref().unwrap();
+        let lending_market = self.lending_market.as_ref().unwrap();
+        let mut transaction = Transaction::new_with_payer(
+            &[
+                refresh_reserve(
+                    spl_token_lending::id(),
+                    reserve.pubkey,
+                    self.sol_oracle.price_pubkey,
+                ),
+                refresh_obligation(spl_token_lending::id(), alice_obligation.pubkey, vec![]),
+                borrow_obligation_liquidity(
+                    spl_token_lending::id(),
+                    u64::MAX,
+                    None,
+                    reserve.liquidity_supply_pubkey,
+                    reserve.user_liquidity_pubkey,
+                    reserve.pubkey,
+                    reserve.liquidity_fee_receiver_pubkey,
+                    alice_obligation.pubkey,
+                    lending_market.pubkey,
+                    alice_borrower.keypair.pubkey(),
+                    Some(reserve.liquidity_host_pubkey),
+                ),
+            ],
+            Some(&self.payer.pubkey()),
+        );
+        transaction.sign(
+            &[&self.payer, &alice_borrower.keypair],
+            self.recent_blockhash,
+        );
+        assert!(self
+            .banks_client
+            .process_transaction(transaction)
+            .await
+            .is_ok());
+        // let result = self.banks_client.process_transaction(transaction).await;
+        // println!("result: {:?}", result);
     }
 }

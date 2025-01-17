@@ -12,5 +12,7 @@ async fn integration_test() {
     test.change_market_owner(market_owner).await;
     test.create_init_user_supply_accounts().await;
     test.create_reserves().await;
+    test.refresh_reserves().await;
     test.create_obligations().await;
+    test.borrow_obligation_liquidity().await;
 }
