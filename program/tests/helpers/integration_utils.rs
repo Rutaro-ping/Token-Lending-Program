@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use solana_program_test::{processor, BanksClient, ProgramTest};
+use solana_program_test::{processor, ProgramTest, ProgramTestContext};
 use solana_sdk::{
-    hash::Hash, msg, native_token::LAMPORTS_PER_SOL, program_pack::Pack, pubkey::Pubkey,
-    signature::Keypair, signer::Signer, transaction::Transaction,
+    native_token::LAMPORTS_PER_SOL, program_pack::Pack, pubkey::Pubkey, signature::Keypair,
+    signer::Signer, transaction::Transaction,
 };
 use spl_token::state::Account as TokenAccount;
 use spl_token_lending::{
@@ -30,9 +30,7 @@ pub(crate) struct Borrower {
     pub keypair: Keypair,
 }
 pub(crate) struct IntegrationTest {
-    banks_client: BanksClient,
-    payer: Keypair,
-    recent_blockhash: Hash,
+    test_context: ProgramTestContext,
     sol_oracle: TestOracle,
     usdc_oracle: TestOracle,
     usdc_mint: TestMint,
@@ -59,7 +57,6 @@ impl IntegrationTest {
 
         test.set_compute_max_units(80_000);
 
-        let (banks_client, payer, recent_blockhash) = test.start().await;
         let borrowers = ["alice", "bob"]
             .iter()
             .map(|name| {
@@ -75,9 +72,7 @@ impl IntegrationTest {
             .collect::<HashMap<&str, Borrower>>();
 
         IntegrationTest {
-            banks_client,
-            payer,
-            recent_blockhash,
+            test_context: test.start_with_context().await,
             sol_oracle,
             usdc_oracle,
             usdc_mint,
@@ -96,8 +91,8 @@ impl IntegrationTest {
         let temp_lending_market_owner = Keypair::new();
         let temp_lending_market_keypair = Keypair::new();
         let test_lending_market = TestLendingMarket::init(
-            &mut self.banks_client,
-            &self.payer,
+            &mut self.test_context.banks_client,
+            &self.test_context.payer,
             Some(MarketInitParams {
                 lending_market_owner: Some(temp_lending_market_owner),
                 lending_market_keypair: Some(temp_lending_market_keypair),
@@ -105,7 +100,9 @@ impl IntegrationTest {
             }),
         )
         .await;
-        let market = test_lending_market.get_state(&mut self.banks_client).await;
+        let market = test_lending_market
+            .get_state(&mut self.test_context.banks_client)
+            .await;
         assert_eq!(market.owner, test_lending_market.owner.pubkey());
         // self.lending_market = Some(test_lending_market);
         self.lending_market = Some(test_lending_market);
@@ -119,18 +116,24 @@ impl IntegrationTest {
                 lending_market.owner.pubkey(),
                 market_owner.pubkey(),
             )],
-            Some(&self.payer.pubkey()),
+            Some(&self.test_context.payer.pubkey()),
         );
         // //update the owner of the lending market after it updated onchain.
 
-        transaction.sign(&[&self.payer, &lending_market.owner], self.recent_blockhash);
-        self.banks_client
+        transaction.sign(
+            &[&self.test_context.payer, &lending_market.owner],
+            self.test_context.last_blockhash,
+        );
+        self.test_context
+            .banks_client
             .process_transaction(transaction)
             .await
             .map_err(|e| e.unwrap())
             .unwrap();
 
-        let market = lending_market.get_state(&mut self.banks_client).await;
+        let market = lending_market
+            .get_state(&mut self.test_context.banks_client)
+            .await;
         assert_eq!(market.owner, market_owner.pubkey());
         assert_ne!(lending_market.owner.pubkey(), market.owner);
         //update the owner of the lending market after it updated onchain.
@@ -139,40 +142,47 @@ impl IntegrationTest {
 
     pub async fn create_init_user_supply_accounts(&mut self) {
         let init_sol_user_liquidity_account = create_and_mint_to_token_account(
-            &mut self.banks_client,
+            &mut self.test_context.banks_client,
             spl_token::native_mint::id(),
             None,
-            &self.payer,
+            &self.test_context.payer,
             self.user_accounts_owner.pubkey(),
             INIT_RESERVE_SOL_AMOUNT,
         )
         .await;
 
         let init_usdc_user_liquidity_account = create_and_mint_to_token_account(
-            &mut self.banks_client,
+            &mut self.test_context.banks_client,
             self.usdc_mint.pubkey,
             Some(&self.usdc_mint.authority),
-            &self.payer,
+            &self.test_context.payer,
             self.user_accounts_owner.pubkey(),
             INIT_RESERVE_USDC_AMOUNT,
         )
         .await;
 
-        let sol_balance =
-            get_token_balance(&mut self.banks_client, init_sol_user_liquidity_account).await;
+        let sol_balance = get_token_balance(
+            &mut self.test_context.banks_client,
+            init_sol_user_liquidity_account,
+        )
+        .await;
         let sol_balance_lamports = self
+            .test_context
             .banks_client
             .get_balance(init_sol_user_liquidity_account)
             .await
             .unwrap();
         assert_eq!(sol_balance, INIT_RESERVE_SOL_AMOUNT);
-        let rent = self.banks_client.get_rent().await.unwrap();
+        let rent = self.test_context.banks_client.get_rent().await.unwrap();
         let lamports = rent.minimum_balance(TokenAccount::LEN) + INIT_RESERVE_SOL_AMOUNT;
         //native SOL token account total lamports = rent + init_sol_amount
         assert_eq!(sol_balance_lamports, lamports);
 
-        let usdc_balance =
-            get_token_balance(&mut self.banks_client, init_usdc_user_liquidity_account).await;
+        let usdc_balance = get_token_balance(
+            &mut self.test_context.banks_client,
+            init_usdc_user_liquidity_account,
+        )
+        .await;
         assert_eq!(usdc_balance, INIT_RESERVE_USDC_AMOUNT);
         self.init_sol_user_liquidity_account = init_sol_user_liquidity_account;
         self.init_usdc_user_liquidity_account = init_usdc_user_liquidity_account;
@@ -182,14 +192,14 @@ impl IntegrationTest {
         let lending_market = self.lending_market.as_ref().unwrap();
         let sol_reserve = TestReserve::init(
             "sol".to_owned(),
-            &mut self.banks_client,
+            &mut self.test_context.banks_client,
             lending_market,
             &self.sol_oracle,
             INIT_RESERVE_SOL_AMOUNT,
             TEST_RESERVE_CONFIG,
             spl_token::native_mint::id(),
             self.init_sol_user_liquidity_account,
-            &self.payer,
+            &self.test_context.payer,
             &self.user_accounts_owner,
         )
         .await
@@ -197,21 +207,21 @@ impl IntegrationTest {
         self.sol_reserve = Some(sol_reserve);
         let usdc_reserve = TestReserve::init(
             "usdc".to_owned(),
-            &mut self.banks_client,
+            &mut self.test_context.banks_client,
             lending_market,
             &self.usdc_oracle,
             INIT_RESERVE_USDC_AMOUNT,
             TEST_RESERVE_CONFIG,
             self.usdc_mint.pubkey,
             self.init_usdc_user_liquidity_account,
-            &self.payer,
+            &self.test_context.payer,
             &self.user_accounts_owner,
         )
         .await
         .unwrap();
         self.usdc_reserve = Some(usdc_reserve);
     }
-    
+
     pub async fn refresh_reserves(&mut self) {
         let sol_reserve = self.sol_reserve.as_ref().unwrap();
         let usdc_reserve = self.usdc_reserve.as_ref().unwrap();
@@ -229,10 +239,14 @@ impl IntegrationTest {
                     self.usdc_oracle.price_pubkey,
                 ),
             ],
-            Some(&self.payer.pubkey()),
+            Some(&self.test_context.payer.pubkey()),
         );
-        transaction.sign(&[&self.payer], self.recent_blockhash);
+        transaction.sign(
+            &[&self.test_context.payer],
+            self.test_context.last_blockhash,
+        );
         assert!(self
+            .test_context
             .banks_client
             .process_transaction(transaction)
             .await
@@ -242,26 +256,28 @@ impl IntegrationTest {
         let borrower_bob = self.borrowers.get_mut("bob").unwrap();
         let lending_market = self.lending_market.as_ref().unwrap();
         let bob_obligation = TestObligation::init(
-            &mut self.banks_client,
+            &mut self.test_context.banks_client,
             lending_market,
             &borrower_bob.keypair,
-            &self.payer,
+            &self.test_context.payer,
         )
         .await
         .unwrap();
-        bob_obligation.validate_state(&mut self.banks_client).await;
+        bob_obligation
+            .validate_state(&mut self.test_context.banks_client)
+            .await;
         borrower_bob.obligation = Some(bob_obligation);
         let borrower_alice = self.borrowers.get_mut("alice").unwrap();
         let alice_obligation = TestObligation::init(
-            &mut self.banks_client,
+            &mut self.test_context.banks_client,
             lending_market,
             &borrower_alice.keypair,
-            &self.payer,
+            &self.test_context.payer,
         )
         .await
         .unwrap();
         alice_obligation
-            .validate_state(&mut self.banks_client)
+            .validate_state(&mut self.test_context.banks_client)
             .await;
         borrower_alice.obligation = Some(alice_obligation);
     }
@@ -293,13 +309,14 @@ impl IntegrationTest {
                     Some(reserve.liquidity_host_pubkey),
                 ),
             ],
-            Some(&self.payer.pubkey()),
+            Some(&self.test_context.payer.pubkey()),
         );
         transaction.sign(
-            &[&self.payer, &alice_borrower.keypair],
-            self.recent_blockhash,
+            &[&self.test_context.payer, &alice_borrower.keypair],
+            self.test_context.last_blockhash,
         );
         assert!(self
+            .test_context
             .banks_client
             .process_transaction(transaction)
             .await
