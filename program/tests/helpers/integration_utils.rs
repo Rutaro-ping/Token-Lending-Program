@@ -2,15 +2,20 @@ use std::collections::HashMap;
 
 use solana_program_test::{processor, ProgramTest, ProgramTestContext};
 use solana_sdk::{
-    native_token::LAMPORTS_PER_SOL, program_pack::Pack, pubkey::Pubkey, signature::Keypair,
-    signer::Signer, transaction::Transaction,
+    msg, native_token::LAMPORTS_PER_SOL, program_pack::Pack, pubkey::Pubkey, signature::Keypair,
+    signer::Signer, system_instruction, transaction::Transaction,
 };
-use spl_token::state::Account as TokenAccount;
+use spl_token::{
+    instruction::{mint_to, sync_native},
+    state::Account as TokenAccount,
+};
 use spl_token_lending::{
     instruction::builder::{
-        borrow_obligation_liquidity, refresh_obligation, refresh_reserve, set_lending_market_owner,
+        borrow_obligation_liquidity, deposit_obligation_collateral, refresh_obligation,
+        refresh_reserve, set_lending_market_owner,
     },
     processor::process_instruction,
+    state::obligation,
 };
 
 use crate::helpers::{get_token_balance, MarketInitParams};
@@ -282,10 +287,55 @@ impl IntegrationTest {
         borrower_alice.obligation = Some(alice_obligation);
     }
 
-    pub async fn borrow_obligation_liquidity(&mut self) {
+    pub async fn alice_borrow_sol_without_collateral(&self) {
         let reserve = self.sol_reserve.as_ref().unwrap();
-        let alice_borrower = self.borrowers.get_mut("alice").unwrap();
+        let alice_borrower = self.borrowers.get("alice").unwrap();
+        self.borrow_obligation_liquidity(reserve, alice_borrower)
+            .await;
+    }
+    pub async fn alice_deposit_sol_collateral(&mut self) {
+        let sol_reserve = self.sol_reserve.as_ref().unwrap();
+        let alice_borrower = self.borrowers.get("alice").unwrap();
         let alice_obligation = alice_borrower.obligation.as_ref().unwrap();
+
+        self.airdrop_native_sol(1000, sol_reserve.user_collateral_pubkey)
+            .await;
+
+        // msg!("balance: {:?}", balance);
+        self.airdrop_native_sol(2, sol_reserve.user_collateral_pubkey)
+            .await;
+        // const SOL_DEPOSIT_AMOUNT_LAMPORTS: u64 = 1000 * LAMPORTS_PER_SOL;
+        // let mut transaction = Transaction::new_with_payer(
+        //     &[deposit_obligation_collateral(
+        //         spl_token_lending::id(),
+        //         SOL_DEPOSIT_AMOUNT_LAMPORTS,
+        //         sol_reserve.user_collateral_pubkey,
+        //         sol_reserve.collateral_supply_pubkey,
+        //         sol_reserve.pubkey,
+        //         alice_obligation.pubkey,
+        //         self.lending_market.as_ref().unwrap().pubkey,
+        //         alice_obligation.owner,
+        //         self.user_accounts_owner.pubkey(),
+        //     )],
+        //     Some(&self.test_context.payer.pubkey()),
+        // );
+        // transaction.sign(
+        //     &[
+        //         &self.test_context.payer,
+        //         &self.user_accounts_owner,
+        //         &alice_borrower.keypair,
+        //     ],
+        //     self.test_context.last_blockhash,
+        // );
+        // self.test_context
+        //     .banks_client
+        //     .process_transaction(transaction)
+        //     .await
+        //     .unwrap();
+    }
+
+    async fn borrow_obligation_liquidity(&self, reserve: &TestReserve, borrower: &Borrower) {
+        let obligation = borrower.obligation.as_ref().unwrap();
         let lending_market = self.lending_market.as_ref().unwrap();
         let mut transaction = Transaction::new_with_payer(
             &[
@@ -294,7 +344,7 @@ impl IntegrationTest {
                     reserve.pubkey,
                     self.sol_oracle.price_pubkey,
                 ),
-                refresh_obligation(spl_token_lending::id(), alice_obligation.pubkey, vec![]),
+                refresh_obligation(spl_token_lending::id(), obligation.pubkey, vec![]),
                 borrow_obligation_liquidity(
                     spl_token_lending::id(),
                     u64::MAX,
@@ -303,25 +353,69 @@ impl IntegrationTest {
                     reserve.user_liquidity_pubkey,
                     reserve.pubkey,
                     reserve.liquidity_fee_receiver_pubkey,
-                    alice_obligation.pubkey,
+                    obligation.pubkey,
                     lending_market.pubkey,
-                    alice_borrower.keypair.pubkey(),
+                    borrower.keypair.pubkey(),
                     Some(reserve.liquidity_host_pubkey),
                 ),
             ],
             Some(&self.test_context.payer.pubkey()),
         );
         transaction.sign(
-            &[&self.test_context.payer, &alice_borrower.keypair],
+            &[&self.test_context.payer, &borrower.keypair],
             self.test_context.last_blockhash,
         );
-        assert!(self
-            .test_context
+
+        self.test_context
             .banks_client
             .process_transaction(transaction)
             .await
-            .is_ok());
-        // let result = self.banks_client.process_transaction(transaction).await;
-        // println!("result: {:?}", result);
+            .unwrap();
+    }
+    //provide airdrop for native SOL
+    async fn airdrop_native_sol(&self, amount: u64, to_account: Pubkey) {
+        //implement transfer lamports from payer, then sync the account
+        let mut transaction = Transaction::new_with_payer(
+            &[
+                system_instruction::transfer(&self.test_context.payer.pubkey(), &to_account, 2),
+                sync_native(&spl_token::id(), &to_account).unwrap(),
+            ],
+            Some(&self.test_context.payer.pubkey()),
+        );
+        transaction.sign(
+            &[&self.test_context.payer],
+            self.test_context.last_blockhash,
+        );
+        let result = self
+            .test_context
+            .banks_client
+            .process_transaction(transaction)
+            .await;
+        msg!("result: {:?}", result.err());
+    }
+
+    //provide airdrop for USDC
+    pub async fn airdrop_usdc(&mut self, amount: u64, to_account: Pubkey) {
+        let mut transaction = Transaction::new_with_payer(
+            &[mint_to(
+                &spl_token::id(),
+                &self.usdc_mint.pubkey,
+                &to_account,
+                &self.user_accounts_owner.pubkey(),
+                &[],
+                amount * FRACTIONAL_TO_USDC,
+            )
+            .unwrap()],
+            Some(&self.test_context.payer.pubkey()),
+        );
+        transaction.sign(
+            &[&self.test_context.payer, &self.user_accounts_owner],
+            self.test_context.last_blockhash,
+        );
+        self.test_context
+            .banks_client
+            .process_transaction(transaction)
+            .await
+            .unwrap();
     }
 }
