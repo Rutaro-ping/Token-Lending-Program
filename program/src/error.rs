@@ -1,6 +1,6 @@
 use {
     num_derive::FromPrimitive,
-    num_traits::FromPrimitive, //todo
+    num_traits::FromPrimitive,
     solana_program::{
         decode_error::DecodeError,
         msg,
@@ -13,7 +13,7 @@ pub enum LendingError {
     // 0
     /// Invalid instruction data passed in.
     #[error("Failed to unpack instruction data")]
-    InstructionUnpackError,
+    InstructionUnpackError = 3000,
     /// The account cannot be initialized because it is already in use.
     #[error("Account is already initialized")]
     AlreadyInitialized,
@@ -197,10 +197,10 @@ mod tests {
     #[test]
     fn test_decode_error() {
         // Test successful decode
-        let error = LendingError::decode_custom_error_to_enum(0);
+        let error = LendingError::decode_custom_error_to_enum(3000);
         assert_eq!(error, Some(LendingError::InstructionUnpackError));
 
-        let error = LendingError::decode_custom_error_to_enum(5);
+        let error = LendingError::decode_custom_error_to_enum(3005);
         assert_eq!(error, Some(LendingError::InvalidAccountOwner));
 
         // Test invalid error code returns None
@@ -220,9 +220,9 @@ mod tests {
     fn test_error_conversion() {
         // Test conversion to ProgramError
         let program_error: ProgramError = LendingError::InstructionUnpackError.into();
-        assert_eq!(program_error, ProgramError::Custom(0));
+        assert_eq!(program_error, ProgramError::Custom(3000));
 
-        let program_error: ProgramError = LendingError::InvalidAccountOwner.into();
-        assert_eq!(program_error, ProgramError::Custom(5));
+        let program_error: ProgramError = LendingError::ExceededSlippage.into();
+        assert_eq!(program_error, ProgramError::Custom(3045));
     }
 }
