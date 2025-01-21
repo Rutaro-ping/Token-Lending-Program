@@ -1,15 +1,26 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
-use solana_program_test::{processor, ProgramTest, ProgramTestContext};
+use solana_program_test::{
+    processor, BanksClient, BanksClientError, ProgramTest, ProgramTestContext,
+};
 use solana_sdk::{
-    msg, native_token::LAMPORTS_PER_SOL, program_pack::Pack, pubkey::Pubkey, signature::Keypair,
-    signer::Signer, system_instruction, transaction::Transaction,
+    instruction::InstructionError,
+    msg,
+    native_token::LAMPORTS_PER_SOL,
+    program_option::COption,
+    program_pack::Pack,
+    pubkey::Pubkey,
+    signature::Keypair,
+    signer::Signer,
+    system_instruction,
+    transaction::{Transaction, TransactionError},
 };
 use spl_token::{
     instruction::{mint_to, sync_native},
-    state::Account as TokenAccount,
+    state::{Account as TokenAccount, Mint},
 };
 use spl_token_lending::{
+    error::LendingError,
     instruction::builder::{
         borrow_obligation_liquidity, deposit_obligation_collateral, refresh_obligation,
         refresh_reserve, set_lending_market_owner,
@@ -21,7 +32,7 @@ use spl_token_lending::{
 use crate::helpers::{get_token_balance, MarketInitParams};
 
 use super::{
-    add_sol_oracle, add_usdc_mint, add_usdc_oracle, create_and_mint_to_token_account,
+    add_sol_oracle, add_usdc_mint, add_usdc_oracle, create_and_mint_to_token_account, get_state,
     TestLendingMarket, TestMint, TestObligation, TestOracle, TestReserve, FRACTIONAL_TO_USDC,
     TEST_RESERVE_CONFIG,
 };
@@ -33,13 +44,15 @@ pub(crate) struct Borrower {
     pub name: &'static str,
     pub obligation: Option<TestObligation>,
     pub keypair: Keypair,
+    pub usdc_account: Option<Pubkey>,
+    pub sol_account: Option<Pubkey>,
 }
 pub(crate) struct IntegrationTest {
     test_context: ProgramTestContext,
     sol_oracle: TestOracle,
     usdc_oracle: TestOracle,
     usdc_mint: TestMint,
-    pub lending_market: Option<TestLendingMarket>,
+    lending_market: Option<TestLendingMarket>,
     user_accounts_owner: Keypair,
     init_sol_user_liquidity_account: Pubkey,
     init_usdc_user_liquidity_account: Pubkey,
@@ -71,6 +84,8 @@ impl IntegrationTest {
                         name: name.to_owned(),
                         obligation: None,
                         keypair: Keypair::new(),
+                        usdc_account: None,
+                        sol_account: None,
                     },
                 )
             })
@@ -89,6 +104,69 @@ impl IntegrationTest {
             sol_reserve: None,
             usdc_reserve: None,
             borrowers,
+        }
+    }
+
+    pub async fn open_usdc_sol_accounts(&mut self) {
+        const OPEN_ACCOUNT_AMOUNT: u64 = 1;
+
+        async fn setup_accounts(
+            banks_client: &mut BanksClient,
+            payer: &Keypair,
+            borrower: &mut Borrower,
+            usdc_mint: &TestMint,
+        ) {
+            borrower.usdc_account = Some(
+                create_and_mint_to_token_account(
+                    banks_client,
+                    usdc_mint.pubkey,
+                    Some(&usdc_mint.authority),
+                    payer,
+                    borrower.keypair.pubkey(),
+                    OPEN_ACCOUNT_AMOUNT,
+                )
+                .await,
+            );
+
+            borrower.sol_account = Some(
+                create_and_mint_to_token_account(
+                    banks_client,
+                    spl_token::native_mint::id(),
+                    None,
+                    payer,
+                    borrower.keypair.pubkey(),
+                    OPEN_ACCOUNT_AMOUNT,
+                )
+                .await,
+            );
+            let usdc_account =
+                get_state::<TokenAccount>(borrower.usdc_account.unwrap(), banks_client)
+                    .await
+                    .unwrap();
+            assert_eq!(usdc_account.amount, OPEN_ACCOUNT_AMOUNT);
+            assert_eq!(usdc_account.mint, usdc_mint.pubkey);
+            assert_eq!(usdc_account.owner, borrower.keypair.pubkey());
+            assert_eq!(usdc_account.is_native, COption::None);
+            let sol_account =
+                get_state::<TokenAccount>(borrower.sol_account.unwrap(), banks_client)
+                    .await
+                    .unwrap();
+            msg!("sol_account: {:#?}", sol_account);
+            assert_eq!(sol_account.amount, OPEN_ACCOUNT_AMOUNT);
+            assert_eq!(sol_account.mint, spl_token::native_mint::id());
+            assert_eq!(sol_account.owner, borrower.keypair.pubkey());
+            assert_eq!(sol_account.is_native, COption::Some(2039280)); //which the rent-exempt amount
+        }
+
+        for name in ["alice", "bob"] {
+            let borrower = self.borrowers.get_mut(name).unwrap();
+            setup_accounts(
+                &mut self.test_context.banks_client,
+                &self.test_context.payer,
+                borrower,
+                &self.usdc_mint,
+            )
+            .await;
         }
     }
 
@@ -290,51 +368,78 @@ impl IntegrationTest {
     pub async fn alice_borrow_sol_without_collateral(&self) {
         let reserve = self.sol_reserve.as_ref().unwrap();
         let alice_borrower = self.borrowers.get("alice").unwrap();
-        self.borrow_obligation_liquidity(reserve, alice_borrower)
+        let result = self
+            .borrow_obligation_liquidity(reserve, alice_borrower)
             .await;
+        assert_eq!(
+            result.unwrap_err().unwrap(),
+            TransactionError::InstructionError(
+                2,
+                InstructionError::Custom(LendingError::ObligationDepositsEmpty as u32)
+            )
+        );
+    }
+    pub async fn alice_deposit_usdc_reserve(&mut self, amount: u64) {
+        let usdc_reserve = self.usdc_reserve.as_ref().unwrap();
+        let alice_borrower = self.borrowers.get("alice").unwrap();
     }
     pub async fn alice_deposit_sol_collateral(&mut self) {
         let sol_reserve = self.sol_reserve.as_ref().unwrap();
         let alice_borrower = self.borrowers.get("alice").unwrap();
         let alice_obligation = alice_borrower.obligation.as_ref().unwrap();
+        let token_account = get_state::<TokenAccount>(
+            sol_reserve.user_collateral_pubkey,
+            &mut self.test_context.banks_client,
+        )
+        .await
+        .unwrap();
+        msg!("token_account: {:#?}", token_account);
+        let mint = get_state::<Mint>(token_account.mint, &mut self.test_context.banks_client)
+            .await
+            .unwrap();
+        msg!("mint: {:#?}", mint);
 
-        self.airdrop_native_sol(1000, sol_reserve.user_collateral_pubkey)
-            .await;
+        // self.airdrop_native_sol(1000, alice_borrower.obligation.unwrap())
+        //     .await;
 
         // msg!("balance: {:?}", balance);
-        self.airdrop_native_sol(2, sol_reserve.user_collateral_pubkey)
-            .await;
-        // const SOL_DEPOSIT_AMOUNT_LAMPORTS: u64 = 1000 * LAMPORTS_PER_SOL;
-        // let mut transaction = Transaction::new_with_payer(
-        //     &[deposit_obligation_collateral(
-        //         spl_token_lending::id(),
-        //         SOL_DEPOSIT_AMOUNT_LAMPORTS,
-        //         sol_reserve.user_collateral_pubkey,
-        //         sol_reserve.collateral_supply_pubkey,
-        //         sol_reserve.pubkey,
-        //         alice_obligation.pubkey,
-        //         self.lending_market.as_ref().unwrap().pubkey,
-        //         alice_obligation.owner,
-        //         self.user_accounts_owner.pubkey(),
-        //     )],
-        //     Some(&self.test_context.payer.pubkey()),
-        // );
-        // transaction.sign(
-        //     &[
-        //         &self.test_context.payer,
-        //         &self.user_accounts_owner,
-        //         &alice_borrower.keypair,
-        //     ],
-        //     self.test_context.last_blockhash,
-        // );
-        // self.test_context
-        //     .banks_client
-        //     .process_transaction(transaction)
-        //     .await
-        //     .unwrap();
+        // self.airdrop_native_sol(2, sol_reserve.user_collateral_pubkey)
+        //     .await;
+        const SOL_DEPOSIT_AMOUNT_LAMPORTS: u64 = 1000 * LAMPORTS_PER_SOL;
+        let mut transaction = Transaction::new_with_payer(
+            &[deposit_obligation_collateral(
+                spl_token_lending::id(),
+                SOL_DEPOSIT_AMOUNT_LAMPORTS,
+                sol_reserve.user_collateral_pubkey,
+                sol_reserve.collateral_supply_pubkey,
+                sol_reserve.pubkey,
+                alice_obligation.pubkey,
+                self.lending_market.as_ref().unwrap().pubkey,
+                alice_obligation.owner,
+                self.user_accounts_owner.pubkey(),
+            )],
+            Some(&self.test_context.payer.pubkey()),
+        );
+        transaction.sign(
+            &[
+                &self.test_context.payer,
+                &self.user_accounts_owner,
+                &alice_borrower.keypair,
+            ],
+            self.test_context.last_blockhash,
+        );
+        self.test_context
+            .banks_client
+            .process_transaction(transaction)
+            .await
+            .unwrap();
     }
 
-    async fn borrow_obligation_liquidity(&self, reserve: &TestReserve, borrower: &Borrower) {
+    async fn borrow_obligation_liquidity(
+        &self,
+        reserve: &TestReserve,
+        borrower: &Borrower,
+    ) -> Result<(), BanksClientError> {
         let obligation = borrower.obligation.as_ref().unwrap();
         let lending_market = self.lending_market.as_ref().unwrap();
         let mut transaction = Transaction::new_with_payer(
@@ -365,12 +470,10 @@ impl IntegrationTest {
             &[&self.test_context.payer, &borrower.keypair],
             self.test_context.last_blockhash,
         );
-
         self.test_context
             .banks_client
             .process_transaction(transaction)
             .await
-            .unwrap();
     }
     //provide airdrop for native SOL
     async fn airdrop_native_sol(&self, amount: u64, to_account: Pubkey) {
@@ -391,7 +494,8 @@ impl IntegrationTest {
             .banks_client
             .process_transaction(transaction)
             .await;
-        msg!("result: {:?}", result.err());
+        let err = result.unwrap_err().unwrap();
+        msg!("err: {:?}", err);
     }
 
     //provide airdrop for USDC
