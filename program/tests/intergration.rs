@@ -10,6 +10,7 @@ async fn integration_test() {
     let mut test = integration_utils::IntegrationTest::new().await;
     //open usdc and sol token accounts for both alice and bob
     test.open_usdc_sol_accounts().await;
+
     //create a market
     test.create_market().await;
     //change the market owner to the market owner
@@ -24,6 +25,6 @@ async fn integration_test() {
     test.create_obligations().await;
 
     test.alice_borrow_sol_without_collateral().await;
-
-
+    //by default it airdrop 1000 tokens to each account of each borrower in respect mint type.
+    test.top_up_token_accounts().await;
 }

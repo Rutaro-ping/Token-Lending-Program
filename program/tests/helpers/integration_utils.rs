@@ -26,10 +26,9 @@ use spl_token_lending::{
         refresh_reserve, set_lending_market_owner,
     },
     processor::process_instruction,
-    state::obligation,
 };
 
-use crate::helpers::{get_token_balance, MarketInitParams};
+use crate::helpers::{get_token_balance, MarketInitParams, LAMPORTS_TO_SOL};
 
 use super::{
     add_sol_oracle, add_usdc_mint, add_usdc_oracle, create_and_mint_to_token_account, get_state,
@@ -39,6 +38,7 @@ use super::{
 
 pub(crate) const INIT_RESERVE_SOL_AMOUNT: u64 = 10 * LAMPORTS_PER_SOL;
 pub(crate) const INIT_RESERVE_USDC_AMOUNT: u64 = 10 * FRACTIONAL_TO_USDC;
+pub(crate) const BORROWER_NAME_LIST: [&str; 2] = ["alice", "bob"];
 
 pub(crate) struct Borrower {
     pub name: &'static str,
@@ -75,7 +75,7 @@ impl IntegrationTest {
 
         test.set_compute_max_units(80_000);
 
-        let borrowers = ["alice", "bob"]
+        let borrowers = BORROWER_NAME_LIST
             .iter()
             .map(|name| {
                 (
@@ -98,7 +98,8 @@ impl IntegrationTest {
             usdc_mint,
             lending_market: None,
             user_accounts_owner: Keypair::new(),
-
+            //below two accounts used to be init supply for reserves,
+            // one for sol reserve, one for usdc reserve
             init_sol_user_liquidity_account: Pubkey::default(),
             init_usdc_user_liquidity_account: Pubkey::default(),
             sol_reserve: None,
@@ -151,7 +152,6 @@ impl IntegrationTest {
                 get_state::<TokenAccount>(borrower.sol_account.unwrap(), banks_client)
                     .await
                     .unwrap();
-            msg!("sol_account: {:#?}", sol_account);
             assert_eq!(sol_account.amount, OPEN_ACCOUNT_AMOUNT);
             assert_eq!(sol_account.mint, spl_token::native_mint::id());
             assert_eq!(sol_account.owner, borrower.keypair.pubkey());
@@ -335,6 +335,7 @@ impl IntegrationTest {
             .await
             .is_ok());
     }
+
     pub async fn create_obligations(&mut self) {
         let borrower_bob = self.borrowers.get_mut("bob").unwrap();
         let lending_market = self.lending_market.as_ref().unwrap();
@@ -435,6 +436,33 @@ impl IntegrationTest {
             .unwrap();
     }
 
+    pub async fn top_up_token_accounts(&mut self) {
+        const TOP_UP_AMOUNT: u64 = 1000;
+        for name in BORROWER_NAME_LIST {
+            let borrower = self.borrowers.get(name).unwrap();
+            self.airdrop_native_sol(TOP_UP_AMOUNT, borrower.sol_account.unwrap())
+                .await;
+
+            self.airdrop_usdc(TOP_UP_AMOUNT, borrower.usdc_account.unwrap())
+                .await;
+
+            let sol_account = get_state::<TokenAccount>(
+                borrower.sol_account.unwrap(),
+                &mut self.test_context.banks_client,
+            )
+            .await
+            .unwrap();
+            assert!(sol_account.amount >= TOP_UP_AMOUNT * LAMPORTS_PER_SOL);
+
+            let usdc_account = get_state::<TokenAccount>(
+                borrower.usdc_account.unwrap(),
+                &mut self.test_context.banks_client,
+            )
+            .await
+            .unwrap();
+            assert!(usdc_account.amount >= TOP_UP_AMOUNT * FRACTIONAL_TO_USDC);
+        }
+    }
     async fn borrow_obligation_liquidity(
         &self,
         reserve: &TestReserve,
@@ -480,7 +508,11 @@ impl IntegrationTest {
         //implement transfer lamports from payer, then sync the account
         let mut transaction = Transaction::new_with_payer(
             &[
-                system_instruction::transfer(&self.test_context.payer.pubkey(), &to_account, 2),
+                system_instruction::transfer(
+                    &self.test_context.payer.pubkey(),
+                    &to_account,
+                    amount * LAMPORTS_TO_SOL,
+                ),
                 sync_native(&spl_token::id(), &to_account).unwrap(),
             ],
             Some(&self.test_context.payer.pubkey()),
@@ -494,18 +526,17 @@ impl IntegrationTest {
             .banks_client
             .process_transaction(transaction)
             .await;
-        let err = result.unwrap_err().unwrap();
-        msg!("err: {:?}", err);
+        assert!(result.is_ok());
     }
 
     //provide airdrop for USDC
-    pub async fn airdrop_usdc(&mut self, amount: u64, to_account: Pubkey) {
+    pub async fn airdrop_usdc(&self, amount: u64, to_account: Pubkey) {
         let mut transaction = Transaction::new_with_payer(
             &[mint_to(
                 &spl_token::id(),
                 &self.usdc_mint.pubkey,
                 &to_account,
-                &self.user_accounts_owner.pubkey(),
+                &self.usdc_mint.authority.pubkey(),
                 &[],
                 amount * FRACTIONAL_TO_USDC,
             )
@@ -513,13 +544,14 @@ impl IntegrationTest {
             Some(&self.test_context.payer.pubkey()),
         );
         transaction.sign(
-            &[&self.test_context.payer, &self.user_accounts_owner],
+            &[&self.test_context.payer, &self.usdc_mint.authority],
             self.test_context.last_blockhash,
         );
-        self.test_context
+        let result = self
+            .test_context
             .banks_client
             .process_transaction(transaction)
-            .await
-            .unwrap();
+            .await;
+        assert!(result.is_ok());
     }
 }
