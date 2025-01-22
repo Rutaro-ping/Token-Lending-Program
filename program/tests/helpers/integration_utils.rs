@@ -39,16 +39,23 @@ use super::{
 pub(crate) const INIT_RESERVE_SOL_AMOUNT: u64 = 10 * LAMPORTS_PER_SOL;
 pub(crate) const INIT_RESERVE_USDC_AMOUNT: u64 = 10 * FRACTIONAL_TO_USDC;
 pub(crate) const BORROWER_NAME_LIST: [&str; 2] = ["alice", "bob"];
+pub(crate) const CURRENCY_TYPE: [&str; 2] = ["usd", "sol"];
+
+struct BorrowerAccounts {
+    pub token_account: Pubkey,
+    pub collateral_account: Pubkey,
+}
 
 pub(crate) struct Borrower {
     pub name: &'static str,
     pub obligation: Option<TestObligation>,
     pub keypair: Keypair, // usually used as owner for entities like obligation, token accounts of this u, etc.
     pub user_transfer_authority: Keypair, //showcase to delegate the authority of the owner
-    pub usdc_account: Option<Pubkey>,
-    pub usdc_collateral_account: Option<Pubkey>,
-    pub sol_account: Option<Pubkey>,
-    pub sol_collateral_account: Option<Pubkey>,
+    // pub usdc_account: Option<Pubkey>,
+    // pub usdc_collateral_account: Option<Pubkey>,
+    // pub sol_account: Option<Pubkey>,
+    // pub sol_collateral_account: Option<Pubkey>,
+    pub accounts: HashMap<&'static str, BorrowerAccounts>,
 }
 pub(crate) struct IntegrationTest {
     test_context: ProgramTestContext,
@@ -88,10 +95,7 @@ impl IntegrationTest {
                         obligation: None,
                         keypair: Keypair::new(),
                         user_transfer_authority: Keypair::new(),
-                        usdc_account: None,
-                        usdc_collateral_account: None,
-                        sol_account: None,
-                        sol_collateral_account: None,
+                        accounts: HashMap::default(),
                     },
                 )
             })
@@ -122,78 +126,85 @@ impl IntegrationTest {
             payer: &Keypair,
             borrower: &mut Borrower,
             usdc_mint: &TestMint,
-        ) {
-            borrower.usdc_account = Some(
-                create_and_mint_to_token_account(
-                    banks_client,
-                    usdc_mint.pubkey,
-                    Some(&usdc_mint.authority),
-                    payer,
-                    borrower.keypair.pubkey(),
-                    OPEN_ACCOUNT_AMOUNT,
-                )
-                .await,
-            );
+        ) -> (Pubkey, Pubkey) {
+            let usdc_account = create_and_mint_to_token_account(
+                banks_client,
+                usdc_mint.pubkey,
+                Some(&usdc_mint.authority),
+                payer,
+                borrower.keypair.pubkey(),
+                OPEN_ACCOUNT_AMOUNT,
+            )
+            .await;
 
-            borrower.sol_account = Some(
-                create_and_mint_to_token_account(
-                    banks_client,
-                    spl_token::native_mint::id(),
-                    None,
-                    payer,
-                    borrower.keypair.pubkey(),
-                    OPEN_ACCOUNT_AMOUNT,
-                )
-                .await,
-            );
-            let usdc_account =
-                get_state::<TokenAccount>(borrower.usdc_account.unwrap(), banks_client)
-                    .await
-                    .unwrap();
-            assert_eq!(usdc_account.amount, OPEN_ACCOUNT_AMOUNT);
-            assert_eq!(usdc_account.mint, usdc_mint.pubkey);
-            assert_eq!(usdc_account.owner, borrower.keypair.pubkey());
-            assert_eq!(usdc_account.is_native, COption::None);
-            let sol_account =
-                get_state::<TokenAccount>(borrower.sol_account.unwrap(), banks_client)
-                    .await
-                    .unwrap();
-            assert_eq!(sol_account.amount, OPEN_ACCOUNT_AMOUNT);
-            assert_eq!(sol_account.mint, spl_token::native_mint::id());
-            assert_eq!(sol_account.owner, borrower.keypair.pubkey());
-            assert_eq!(sol_account.is_native, COption::Some(2039280)); //which the rent-exempt amount
+            let sol_account = create_and_mint_to_token_account(
+                banks_client,
+                spl_token::native_mint::id(),
+                None,
+                payer,
+                borrower.keypair.pubkey(),
+                OPEN_ACCOUNT_AMOUNT,
+            )
+            .await;
+            let usdc_account_info = get_state::<TokenAccount>(usdc_account, banks_client)
+                .await
+                .unwrap();
+            assert_eq!(usdc_account_info.amount, OPEN_ACCOUNT_AMOUNT);
+            assert_eq!(usdc_account_info.mint, usdc_mint.pubkey);
+            assert_eq!(usdc_account_info.owner, borrower.keypair.pubkey());
+            assert_eq!(usdc_account_info.is_native, COption::None);
+            let sol_account_info = get_state::<TokenAccount>(sol_account, banks_client)
+                .await
+                .unwrap();
+            assert_eq!(sol_account_info.amount, OPEN_ACCOUNT_AMOUNT);
+            assert_eq!(sol_account_info.mint, spl_token::native_mint::id());
+            assert_eq!(sol_account_info.owner, borrower.keypair.pubkey());
+            assert_eq!(sol_account_info.is_native, COption::Some(2039280)); //which the rent-exempt amount
+            (usdc_account, sol_account)
         }
         let sol_colletaral_mint = self.sol_reserve.as_ref().unwrap().collateral_mint_pubkey;
         let usdc_colletaral_mint = self.usdc_reserve.as_ref().unwrap().collateral_mint_pubkey;
         for name in ["alice", "bob"] {
             let borrower = self.borrowers.get_mut(name).unwrap();
-            setup_accounts(
+            let (usdc_account, sol_account) = setup_accounts(
                 &mut self.test_context.banks_client,
                 &self.test_context.payer,
                 borrower,
                 &self.usdc_mint,
             )
             .await;
-            borrower.sol_collateral_account = Some(
-                create_token_account(
-                    &self.test_context.banks_client,
-                    sol_colletaral_mint,
-                    &self.test_context.payer,
-                    Some(borrower.keypair.pubkey()),
-                    None,
-                )
-                .await,
-            );
-            borrower.usdc_collateral_account = Some(
-                create_token_account(
-                    &self.test_context.banks_client,
-                    usdc_colletaral_mint,
-                    &self.test_context.payer,
-                    Some(borrower.keypair.pubkey()),
-                    None,
-                )
-                .await,
-            );
+            let sol_collateral_account = create_token_account(
+                &self.test_context.banks_client,
+                sol_colletaral_mint,
+                &self.test_context.payer,
+                Some(borrower.keypair.pubkey()),
+                None,
+            )
+            .await;
+            let usdc_collateral_account = create_token_account(
+                &self.test_context.banks_client,
+                usdc_colletaral_mint,
+                &self.test_context.payer,
+                Some(borrower.keypair.pubkey()),
+                None,
+            )
+            .await;
+            borrower.accounts = HashMap::from([
+                (
+                    "usdc",
+                    BorrowerAccounts {
+                        token_account: usdc_account,
+                        collateral_account: usdc_collateral_account,
+                    },
+                ),
+                (
+                    "sol",
+                    BorrowerAccounts {
+                        token_account: sol_account,
+                        collateral_account: sol_collateral_account,
+                    },
+                ),
+            ]);
         }
     }
 
@@ -467,14 +478,20 @@ impl IntegrationTest {
         const TOP_UP_AMOUNT: u64 = 1000;
         for name in BORROWER_NAME_LIST {
             let borrower = self.borrowers.get(name).unwrap();
-            self.airdrop_native_sol(TOP_UP_AMOUNT, borrower.sol_account.unwrap())
-                .await;
+            self.airdrop_native_sol(
+                TOP_UP_AMOUNT,
+                borrower.accounts.get("sol").unwrap().token_account,
+            )
+            .await;
 
-            self.airdrop_usdc(TOP_UP_AMOUNT, borrower.usdc_account.unwrap())
-                .await;
+            self.airdrop_usdc(
+                TOP_UP_AMOUNT,
+                borrower.accounts.get("usdc").unwrap().token_account,
+            )
+            .await;
 
             let sol_account = get_state::<TokenAccount>(
-                borrower.sol_account.unwrap(),
+                borrower.accounts.get("sol").unwrap().token_account,
                 &mut self.test_context.banks_client,
             )
             .await
@@ -482,7 +499,7 @@ impl IntegrationTest {
             assert!(sol_account.amount >= TOP_UP_AMOUNT * LAMPORTS_PER_SOL);
 
             let usdc_account = get_state::<TokenAccount>(
-                borrower.usdc_account.unwrap(),
+                borrower.accounts.get("usdc").unwrap().token_account,
                 &mut self.test_context.banks_client,
             )
             .await
@@ -587,8 +604,10 @@ impl IntegrationTest {
         reserve: &TestReserve,
         borrower: &Borrower,
         liquidity_amount: u64,
+        user_transfer_authority: &Keypair,
+        from_account: Pubkey,
+        collateral_account: Pubkey,
     ) {
-        let user_accounts_owner = &self.user_accounts_owner;
         let payer = &self.test_context.payer;
 
         let mut transaction = Transaction::new_with_payer(
@@ -597,7 +616,7 @@ impl IntegrationTest {
                     &spl_token::id(),
                     &reserve.user_liquidity_pubkey,
                     &borrower.user_transfer_authority.pubkey(),
-                    &user_accounts_owner.pubkey(),
+                    &borrower.keypair.pubkey(),
                     &[],
                     liquidity_amount,
                 )
@@ -605,8 +624,8 @@ impl IntegrationTest {
                 deposit_reserve_liquidity(
                     spl_token_lending::id(),
                     liquidity_amount,
-                    borrower.sol_account.unwrap(),
-                    reserve.user_collateral_pubkey,
+                    from_account,
+                    collateral_account,
                     reserve.pubkey,
                     reserve.liquidity_supply_pubkey,
                     reserve.collateral_mint_pubkey,
@@ -615,6 +634,16 @@ impl IntegrationTest {
                 ),
             ],
             Some(&payer.pubkey()),
+        );
+        let recent_blockhash = self
+            .test_context
+            .banks_client
+            .get_latest_blockhash()
+            .await
+            .unwrap();
+        transaction.sign(
+            &[payer, &borrower.keypair, &user_transfer_authority],
+            recent_blockhash,
         );
     }
 }
