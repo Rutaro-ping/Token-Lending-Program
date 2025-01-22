@@ -1,11 +1,13 @@
 #![cfg(feature = "test-sbf")]
 mod helpers;
-use {helpers::integration_utils, solana_program_test::*, solana_sdk::signature::Keypair};
+mod stateful;
+use stateful::*;
+use {solana_program_test::*, solana_sdk::signature::Keypair};
 
 #[tokio::test]
 async fn integration_test() {
     let market_owner = Keypair::new();
-    let mut test = integration_utils::IntegrationTest::new().await;
+    let mut test = IntegrationTest::new().await;
 
     //create a market
     test.create_market().await;
@@ -31,4 +33,5 @@ async fn integration_test() {
     test.go_to_slot(3).await;
     test.alice_deposit_usdc_collateral_to_obligations(1000)
         .await;
+    // test.alice_borrow_sol_with_collateral().await;
 }
