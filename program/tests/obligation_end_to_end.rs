@@ -90,17 +90,17 @@ async fn test_success() {
         },
     );
 
-    let (mut banks_client, payer, recent_blockhash) = test.start().await;
+    let (banks_client, payer, recent_blockhash) = test.start().await;
     let payer_pubkey = payer.pubkey();
 
     let initial_collateral_supply_balance =
-        get_token_balance(&mut banks_client, sol_test_reserve.collateral_supply_pubkey).await;
+        get_token_balance(&banks_client, sol_test_reserve.collateral_supply_pubkey).await;
     let initial_user_collateral_balance =
-        get_token_balance(&mut banks_client, sol_test_reserve.user_collateral_pubkey).await;
+        get_token_balance(&banks_client, sol_test_reserve.user_collateral_pubkey).await;
     let initial_liquidity_supply =
-        get_token_balance(&mut banks_client, usdc_test_reserve.liquidity_supply_pubkey).await;
+        get_token_balance(&banks_client, usdc_test_reserve.liquidity_supply_pubkey).await;
     let initial_user_liquidity_balance =
-        get_token_balance(&mut banks_client, usdc_test_reserve.user_liquidity_pubkey).await;
+        get_token_balance(&banks_client, usdc_test_reserve.user_liquidity_pubkey).await;
 
     let rent = banks_client.get_rent().await.unwrap();
 
@@ -240,7 +240,7 @@ async fn test_success() {
     );
     assert!(banks_client.process_transaction(transaction).await.is_ok());
 
-    let usdc_reserve = usdc_test_reserve.get_state(&mut banks_client).await;
+    let usdc_reserve = usdc_test_reserve.get_state(&banks_client).await;
 
     let obligation = {
         let obligation_account: Account = banks_client
@@ -252,16 +252,16 @@ async fn test_success() {
     };
 
     let collateral_supply_balance =
-        get_token_balance(&mut banks_client, sol_test_reserve.collateral_supply_pubkey).await;
+        get_token_balance(&banks_client, sol_test_reserve.collateral_supply_pubkey).await;
     let user_collateral_balance =
-        get_token_balance(&mut banks_client, sol_test_reserve.user_collateral_pubkey).await;
+        get_token_balance(&banks_client, sol_test_reserve.user_collateral_pubkey).await;
     assert_eq!(collateral_supply_balance, initial_collateral_supply_balance);
     assert_eq!(user_collateral_balance, initial_user_collateral_balance);
 
     let liquidity_supply =
-        get_token_balance(&mut banks_client, usdc_test_reserve.liquidity_supply_pubkey).await;
+        get_token_balance(&banks_client, usdc_test_reserve.liquidity_supply_pubkey).await;
     let user_liquidity_balance =
-        get_token_balance(&mut banks_client, usdc_test_reserve.user_liquidity_pubkey).await;
+        get_token_balance(&banks_client, usdc_test_reserve.user_liquidity_pubkey).await;
     assert_eq!(liquidity_supply, initial_liquidity_supply);
     assert_eq!(
         user_liquidity_balance,
@@ -277,13 +277,13 @@ async fn test_success() {
     assert_eq!(obligation.borrows.len(), 0);
 
     let fee_balance = get_token_balance(
-        &mut banks_client,
+        &banks_client,
         usdc_test_reserve.liquidity_fee_receiver_pubkey,
     )
     .await;
     assert_eq!(fee_balance, FEE_AMOUNT - HOST_FEE_AMOUNT);
 
     let host_fee_balance =
-        get_token_balance(&mut banks_client, usdc_test_reserve.liquidity_host_pubkey).await;
+        get_token_balance(&banks_client, usdc_test_reserve.liquidity_host_pubkey).await;
     assert_eq!(host_fee_balance, HOST_FEE_AMOUNT);
 }

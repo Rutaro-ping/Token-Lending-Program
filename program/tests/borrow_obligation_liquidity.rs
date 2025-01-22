@@ -87,9 +87,9 @@ async fn test_borrow_usdc_fixed_amount() {
             ..AddObligationArgs::default()
         },
     );
-    let (mut banks_client, payer, recent_blockhash) = test.start().await;
+    let (banks_client, payer, recent_blockhash) = test.start().await;
     let initial_liquidity_supply =
-        get_token_balance(&mut banks_client, usdc_test_reserve.liquidity_supply_pubkey).await;
+        get_token_balance(&banks_client, usdc_test_reserve.liquidity_supply_pubkey).await;
     let mut transaction = Transaction::new_with_payer(
         &[
             refresh_obligation(
@@ -117,8 +117,8 @@ async fn test_borrow_usdc_fixed_amount() {
     transaction.sign(&[&payer, &user_accounts_owner], recent_blockhash);
     assert!(banks_client.process_transaction(transaction).await.is_ok());
 
-    let usdc_reserve = usdc_test_reserve.get_state(&mut banks_client).await;
-    let obligation = test_obligation.get_state(&mut banks_client).await;
+    let usdc_reserve = usdc_test_reserve.get_state(&banks_client).await;
+    let obligation = test_obligation.get_state(&banks_client).await;
 
     let (total_fee, host_fee) = usdc_reserve
         .config
@@ -132,7 +132,7 @@ async fn test_borrow_usdc_fixed_amount() {
     assert_eq!(host_fee, HOST_FEE_AMOUNT);
 
     let borrow_amount =
-        get_token_balance(&mut banks_client, usdc_test_reserve.user_liquidity_pubkey).await;
+        get_token_balance(&banks_client, usdc_test_reserve.user_liquidity_pubkey).await;
     assert_eq!(borrow_amount, USDC_BORROW_AMOUNT_FRACTIONAL);
 
     let liquidity = &obligation.borrows[0];
@@ -146,21 +146,21 @@ async fn test_borrow_usdc_fixed_amount() {
     );
 
     let liquidity_supply =
-        get_token_balance(&mut banks_client, usdc_test_reserve.liquidity_supply_pubkey).await;
+        get_token_balance(&banks_client, usdc_test_reserve.liquidity_supply_pubkey).await;
     assert_eq!(
         liquidity_supply,
         initial_liquidity_supply - USDC_TOTAL_BORROW_FRACTIONAL
     );
 
     let fee_balance = get_token_balance(
-        &mut banks_client,
+        &banks_client,
         usdc_test_reserve.liquidity_fee_receiver_pubkey,
     )
     .await;
     assert_eq!(fee_balance, FEE_AMOUNT - HOST_FEE_AMOUNT);
 
     let host_fee_balance =
-        get_token_balance(&mut banks_client, usdc_test_reserve.liquidity_host_pubkey).await;
+        get_token_balance(&banks_client, usdc_test_reserve.liquidity_host_pubkey).await;
     assert_eq!(host_fee_balance, HOST_FEE_AMOUNT);
 }
 #[tokio::test]
@@ -225,9 +225,9 @@ async fn test_borrow_sol_max_amount() {
         },
     );
 
-    let (mut banks_client, payer, recent_blockhash) = test.start().await;
+    let (banks_client, payer, recent_blockhash) = test.start().await;
     let initial_liquidity_supply =
-        get_token_balance(&mut banks_client, sol_test_reserve.liquidity_supply_pubkey).await;
+        get_token_balance(&banks_client, sol_test_reserve.liquidity_supply_pubkey).await;
     let mut transaction = Transaction::new_with_payer(
         &[
             refresh_obligation(
@@ -256,8 +256,8 @@ async fn test_borrow_sol_max_amount() {
     let result = banks_client.process_transaction(transaction).await;
     println!("result: {:?}", result);
 
-    let sol_reserve = sol_test_reserve.get_state(&mut banks_client).await;
-    let obligation = test_obligation.get_state(&mut banks_client).await;
+    let sol_reserve = sol_test_reserve.get_state(&banks_client).await;
+    let obligation = test_obligation.get_state(&banks_client).await;
 
     let (total_fee, host_fee) = sol_reserve
         .config
@@ -269,7 +269,7 @@ async fn test_borrow_sol_max_amount() {
     assert_eq!(host_fee, HOST_FEE_AMOUNT);
 
     let borrow_amount =
-        get_token_balance(&mut banks_client, sol_test_reserve.user_liquidity_pubkey).await;
+        get_token_balance(&banks_client, sol_test_reserve.user_liquidity_pubkey).await;
     assert_eq!(borrow_amount, SOL_BORROW_AMOUNT_LAMPORTS - FEE_AMOUNT);
 
     let liquidity = &obligation.borrows[0];
@@ -279,21 +279,21 @@ async fn test_borrow_sol_max_amount() {
     );
 
     let liquidity_supply =
-        get_token_balance(&mut banks_client, sol_test_reserve.liquidity_supply_pubkey).await;
+        get_token_balance(&banks_client, sol_test_reserve.liquidity_supply_pubkey).await;
     assert_eq!(
         liquidity_supply,
         initial_liquidity_supply - SOL_BORROW_AMOUNT_LAMPORTS
     );
 
     let fee_balance = get_token_balance(
-        &mut banks_client,
+        &banks_client,
         sol_test_reserve.liquidity_fee_receiver_pubkey,
     )
     .await;
     assert_eq!(fee_balance, FEE_AMOUNT - HOST_FEE_AMOUNT);
 
     let host_fee_balance =
-        get_token_balance(&mut banks_client, sol_test_reserve.liquidity_host_pubkey).await;
+        get_token_balance(&banks_client, sol_test_reserve.liquidity_host_pubkey).await;
     assert_eq!(host_fee_balance, HOST_FEE_AMOUNT);
 }
 
@@ -463,10 +463,10 @@ async fn test_borrow_max_receive_minimum() {
         },
     );
 
-    let (mut banks_client, payer, recent_blockhash) = test.start().await;
+    let (banks_client, payer, recent_blockhash) = test.start().await;
 
     let initial_liquidity_supply =
-        get_token_balance(&mut banks_client, sol_test_reserve.liquidity_supply_pubkey).await;
+        get_token_balance(&banks_client, sol_test_reserve.liquidity_supply_pubkey).await;
 
     let mut transaction = Transaction::new_with_payer(
         &[
@@ -495,8 +495,8 @@ async fn test_borrow_max_receive_minimum() {
     transaction.sign(&[&payer, &user_accounts_owner], recent_blockhash);
     assert!(banks_client.process_transaction(transaction).await.is_ok());
 
-    let sol_reserve = sol_test_reserve.get_state(&mut banks_client).await;
-    let obligation = test_obligation.get_state(&mut banks_client).await;
+    let sol_reserve = sol_test_reserve.get_state(&banks_client).await;
+    let obligation = test_obligation.get_state(&banks_client).await;
 
     let (total_fee, host_fee) = sol_reserve
         .config
@@ -508,7 +508,7 @@ async fn test_borrow_max_receive_minimum() {
     assert_eq!(host_fee, HOST_FEE_AMOUNT);
 
     let borrow_amount =
-        get_token_balance(&mut banks_client, sol_test_reserve.user_liquidity_pubkey).await;
+        get_token_balance(&banks_client, sol_test_reserve.user_liquidity_pubkey).await;
     assert_eq!(borrow_amount, SOL_BORROW_AMOUNT_LAMPORTS - FEE_AMOUNT);
 
     let liquidity = &obligation.borrows[0];
@@ -518,21 +518,21 @@ async fn test_borrow_max_receive_minimum() {
     );
 
     let liquidity_supply =
-        get_token_balance(&mut banks_client, sol_test_reserve.liquidity_supply_pubkey).await;
+        get_token_balance(&banks_client, sol_test_reserve.liquidity_supply_pubkey).await;
     assert_eq!(
         liquidity_supply,
         initial_liquidity_supply - SOL_BORROW_AMOUNT_LAMPORTS
     );
 
     let fee_balance = get_token_balance(
-        &mut banks_client,
+        &banks_client,
         sol_test_reserve.liquidity_fee_receiver_pubkey,
     )
     .await;
     assert_eq!(fee_balance, FEE_AMOUNT - HOST_FEE_AMOUNT);
 
     let host_fee_balance =
-        get_token_balance(&mut banks_client, sol_test_reserve.liquidity_host_pubkey).await;
+        get_token_balance(&banks_client, sol_test_reserve.liquidity_host_pubkey).await;
     assert_eq!(host_fee_balance, HOST_FEE_AMOUNT);
 }
 

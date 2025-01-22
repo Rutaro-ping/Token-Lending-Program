@@ -1,39 +1,40 @@
-use crate::sign_and_execute;
-use solana_program_test::{
-    processor, BanksClient, BanksClientError, ProgramTest, ProgramTestContext,
-};
-use solana_sdk::{
-    instruction::InstructionError,
-    msg,
-    native_token::LAMPORTS_PER_SOL,
-    program_option::COption,
-    program_pack::Pack,
-    pubkey::Pubkey,
-    signature::Keypair,
-    signer::Signer,
-    system_instruction,
-    transaction::{Transaction, TransactionError},
-};
-use spl_token::{
-    instruction::{approve, mint_to, sync_native},
-    state::{Account as TokenAccount, Mint},
-};
-use spl_token_lending::{
-    error::LendingError,
-    instruction::builder::{
-        borrow_obligation_liquidity, deposit_obligation_collateral, deposit_reserve_liquidity,
-        refresh_obligation, refresh_reserve, set_lending_market_owner,
+use {
+    super::{
+        add_sol_oracle, add_usdc_mint, add_usdc_oracle, create_and_mint_to_token_account,
+        create_token_account, get_state, TestLendingMarket, TestMint, TestObligation, TestOracle,
+        TestReserve, FRACTIONAL_TO_USDC, TEST_RESERVE_CONFIG,
     },
-    processor::process_instruction,
-};
-use std::collections::HashMap;
-
-use crate::helpers::{get_token_balance, MarketInitParams, LAMPORTS_TO_SOL};
-
-use super::{
-    add_sol_oracle, add_usdc_mint, add_usdc_oracle, create_and_mint_to_token_account,
-    create_token_account, get_state, TestLendingMarket, TestMint, TestObligation, TestOracle,
-    TestReserve, FRACTIONAL_TO_USDC, TEST_RESERVE_CONFIG,
+    crate::{
+        helpers::{get_token_balance, MarketInitParams, LAMPORTS_TO_SOL},
+        sign_and_execute,
+    },
+    solana_program_test::{
+        processor, BanksClient, BanksClientError, ProgramTest, ProgramTestContext,
+    },
+    solana_sdk::{
+        instruction::InstructionError,
+        native_token::LAMPORTS_PER_SOL,
+        program_option::COption,
+        program_pack::Pack,
+        pubkey::Pubkey,
+        signature::Keypair,
+        signer::Signer,
+        system_instruction,
+        transaction::{Transaction, TransactionError},
+    },
+    spl_token::{
+        instruction::{approve, mint_to, sync_native},
+        state::Account as TokenAccount,
+    },
+    spl_token_lending::{
+        error::LendingError,
+        instruction::builder::{
+            borrow_obligation_liquidity, deposit_obligation_collateral, deposit_reserve_liquidity,
+            refresh_obligation, refresh_reserve, set_lending_market_owner,
+        },
+        processor::process_instruction,
+    },
+    std::collections::HashMap,
 };
 
 pub(crate) const INIT_RESERVE_SOL_AMOUNT: u64 = 10 * LAMPORTS_PER_SOL;
@@ -49,7 +50,8 @@ pub(crate) struct BorrowerAccounts {
 pub(crate) struct Borrower {
     pub name: &'static str,
     pub obligation: Option<TestObligation>,
-    pub keypair: Keypair, // usually used as owner for entities like obligation, token accounts of this u, etc.
+    pub keypair: Keypair, /* usually used as owner for entities like obligation, token accounts
+                           * of this u, etc. */
     pub user_transfer_authority: Keypair, //showcase to delegate the authority of the owner
     pub accounts: HashMap<&'static str, BorrowerAccounts>,
 }
@@ -118,7 +120,7 @@ impl IntegrationTest {
         const OPEN_ACCOUNT_AMOUNT: u64 = 1;
 
         async fn setup_accounts(
-            banks_client: &mut BanksClient,
+            banks_client: &BanksClient,
             payer: &Keypair,
             borrower: &mut Borrower,
             usdc_mint: &TestMint,
@@ -163,7 +165,7 @@ impl IntegrationTest {
         for name in ["alice", "bob"] {
             let borrower = self.borrowers.get_mut(name).unwrap();
             let (usdc_account, sol_account) = setup_accounts(
-                &mut self.test_context.banks_client,
+                &self.test_context.banks_client,
                 &self.test_context.payer,
                 borrower,
                 &self.usdc_mint,
@@ -204,11 +206,15 @@ impl IntegrationTest {
         }
     }
 
+    pub async fn go_to_slot(&mut self, slot: u64) {
+        self.test_context.warp_to_slot(slot).unwrap();
+    }
+
     pub async fn create_market(&mut self) {
         let temp_lending_market_owner = Keypair::new();
         let temp_lending_market_keypair = Keypair::new();
         let test_lending_market = TestLendingMarket::init(
-            &mut self.test_context.banks_client,
+            &self.test_context.banks_client,
             &self.test_context.payer,
             Some(MarketInitParams {
                 lending_market_owner: Some(temp_lending_market_owner),
@@ -218,7 +224,7 @@ impl IntegrationTest {
         )
         .await;
         let market = test_lending_market
-            .get_state(&mut self.test_context.banks_client)
+            .get_state(&self.test_context.banks_client)
             .await;
         assert_eq!(market.owner, test_lending_market.owner.pubkey());
         self.lending_market = Some(test_lending_market);
@@ -248,7 +254,7 @@ impl IntegrationTest {
 
     pub async fn create_init_user_supply_accounts(&mut self) {
         let init_sol_user_liquidity_account = create_and_mint_to_token_account(
-            &mut self.test_context.banks_client,
+            &self.test_context.banks_client,
             spl_token::native_mint::id(),
             None,
             &self.test_context.payer,
@@ -258,7 +264,7 @@ impl IntegrationTest {
         .await;
 
         let init_usdc_user_liquidity_account = create_and_mint_to_token_account(
-            &mut self.test_context.banks_client,
+            &self.test_context.banks_client,
             self.usdc_mint.pubkey,
             Some(&self.usdc_mint.authority),
             &self.test_context.payer,
@@ -268,7 +274,7 @@ impl IntegrationTest {
         .await;
 
         let sol_balance = get_token_balance(
-            &mut self.test_context.banks_client,
+            &self.test_context.banks_client,
             init_sol_user_liquidity_account,
         )
         .await;
@@ -285,7 +291,7 @@ impl IntegrationTest {
         assert_eq!(sol_balance_lamports, lamports);
 
         let usdc_balance = get_token_balance(
-            &mut self.test_context.banks_client,
+            &self.test_context.banks_client,
             init_usdc_user_liquidity_account,
         )
         .await;
@@ -298,7 +304,7 @@ impl IntegrationTest {
         let lending_market = self.lending_market.as_ref().unwrap();
         let sol_reserve = TestReserve::init(
             "sol".to_owned(),
-            &mut self.test_context.banks_client,
+            &self.test_context.banks_client,
             lending_market,
             &self.sol_oracle,
             INIT_RESERVE_SOL_AMOUNT,
@@ -313,7 +319,7 @@ impl IntegrationTest {
         self.sol_reserve = Some(sol_reserve);
         let usdc_reserve = TestReserve::init(
             "usdc".to_owned(),
-            &mut self.test_context.banks_client,
+            &self.test_context.banks_client,
             lending_market,
             &self.usdc_oracle,
             INIT_RESERVE_USDC_AMOUNT,
@@ -328,7 +334,7 @@ impl IntegrationTest {
         self.usdc_reserve = Some(usdc_reserve);
     }
 
-    pub async fn refresh_reserves(&mut self) {
+    pub async fn refresh_reserves(&self) {
         let sol_reserve = self.sol_reserve.as_ref().unwrap();
         let usdc_reserve = self.usdc_reserve.as_ref().unwrap();
 
@@ -355,7 +361,7 @@ impl IntegrationTest {
         let borrower_bob = self.borrowers.get_mut("bob").unwrap();
         let lending_market = self.lending_market.as_ref().unwrap();
         let bob_obligation = TestObligation::init(
-            &mut self.test_context.banks_client,
+            &self.test_context.banks_client,
             lending_market,
             &borrower_bob.keypair,
             &self.test_context.payer,
@@ -368,7 +374,7 @@ impl IntegrationTest {
         borrower_bob.obligation = Some(bob_obligation);
         let borrower_alice = self.borrowers.get_mut("alice").unwrap();
         let alice_obligation = TestObligation::init(
-            &mut self.test_context.banks_client,
+            &self.test_context.banks_client,
             lending_market,
             &borrower_alice.keypair,
             &self.test_context.payer,
@@ -398,16 +404,12 @@ impl IntegrationTest {
     pub async fn alice_deposit_usdc_reserve(&self, amount: u64) {
         let usdc_reserve = self.usdc_reserve.as_ref().unwrap();
         let alice_borrower = self.borrowers.get("alice").unwrap();
-        self.deposit_reserve_liquidity(
-            usdc_reserve,
-            alice_borrower,
-            amount,
-            &alice_borrower.user_transfer_authority,
-            "usdc",
-        )
-        .await;
+        self.deposit_reserve_liquidity(usdc_reserve, alice_borrower, amount, "usdc")
+            .await;
     }
-    pub async fn alice_deposit_usdc_collateral_to_obligations(&self, amount: u64) {
+
+    pub async fn alice_deposit_usdc_collateral_to_obligations(&mut self, amount: u64) {
+        self.refresh_reserves().await;
         let usdc_reserve = self.usdc_reserve.as_ref().unwrap();
         let alice_borrower = self.borrowers.get("alice").unwrap();
         self.deposit_obligations(alice_borrower, usdc_reserve, "usdc", amount)
@@ -432,7 +434,7 @@ impl IntegrationTest {
 
             let sol_account = get_state::<TokenAccount>(
                 borrower.accounts.get("sol").unwrap().token_account,
-                &mut self.test_context.banks_client,
+                &self.test_context.banks_client,
             )
             .await
             .unwrap();
@@ -440,7 +442,7 @@ impl IntegrationTest {
 
             let usdc_account = get_state::<TokenAccount>(
                 borrower.accounts.get("usdc").unwrap().token_account,
-                &mut self.test_context.banks_client,
+                &self.test_context.banks_client,
             )
             .await
             .unwrap();

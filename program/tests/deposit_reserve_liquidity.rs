@@ -41,22 +41,19 @@ async fn test_success() {
         },
     );
 
-    let (mut banks_client, payer, _recent_blockhash) = test.start().await;
+    let (banks_client, payer, _recent_blockhash) = test.start().await;
     let initial_user_liquidity_balance =
-        get_token_balance(&mut banks_client, usdc_test_reserve.user_liquidity_pubkey).await;
+        get_token_balance(&banks_client, usdc_test_reserve.user_liquidity_pubkey).await;
     let initial_liquidity_supply_balance =
-        get_token_balance(&mut banks_client, usdc_test_reserve.liquidity_supply_pubkey).await;
+        get_token_balance(&banks_client, usdc_test_reserve.liquidity_supply_pubkey).await;
     let initial_user_collateral_balance =
-        get_token_balance(&mut banks_client, usdc_test_reserve.user_collateral_pubkey).await;
-    let initial_collateral_supply_balance = get_token_balance(
-        &mut banks_client,
-        usdc_test_reserve.collateral_supply_pubkey,
-    )
-    .await;
-    let reserve_state_before = usdc_test_reserve.get_state(&mut banks_client).await;
+        get_token_balance(&banks_client, usdc_test_reserve.user_collateral_pubkey).await;
+    let initial_collateral_supply_balance =
+        get_token_balance(&banks_client, usdc_test_reserve.collateral_supply_pubkey).await;
+    let reserve_state_before = usdc_test_reserve.get_state(&banks_client).await;
     lending_market
         .deposit(
-            &mut banks_client,
+            &banks_client,
             &user_accounts_owner,
             &payer,
             &usdc_test_reserve,
@@ -64,18 +61,15 @@ async fn test_success() {
         )
         .await;
     let final_user_liquidity_balance =
-        get_token_balance(&mut banks_client, usdc_test_reserve.user_liquidity_pubkey).await;
+        get_token_balance(&banks_client, usdc_test_reserve.user_liquidity_pubkey).await;
     let final_liquidity_supply_balance =
-        get_token_balance(&mut banks_client, usdc_test_reserve.liquidity_supply_pubkey).await;
+        get_token_balance(&banks_client, usdc_test_reserve.liquidity_supply_pubkey).await;
     let final_user_collateral_balance =
-        get_token_balance(&mut banks_client, usdc_test_reserve.user_collateral_pubkey).await;
-    let final_collateral_supply_balance = get_token_balance(
-        &mut banks_client,
-        usdc_test_reserve.collateral_supply_pubkey,
-    )
-    .await;
+        get_token_balance(&banks_client, usdc_test_reserve.user_collateral_pubkey).await;
+    let final_collateral_supply_balance =
+        get_token_balance(&banks_client, usdc_test_reserve.collateral_supply_pubkey).await;
 
-    let reserve_state_after = usdc_test_reserve.get_state(&mut banks_client).await;
+    let reserve_state_after = usdc_test_reserve.get_state(&banks_client).await;
     assert_eq!(
         initial_user_liquidity_balance - 100 * FRACTIONAL_TO_USDC,
         final_user_liquidity_balance

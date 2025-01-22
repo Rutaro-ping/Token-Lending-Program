@@ -29,10 +29,10 @@ async fn test_success() {
     let user_accounts_owner = Keypair::new();
     let lending_market = add_lending_market(&mut test);
     let sol_oracle = add_sol_oracle(&mut test);
-    let (mut banks_client, payer, _recent_blockhash) = test.start().await;
+    let (banks_client, payer, _recent_blockhash) = test.start().await;
     const RESERVE_AMOUNT: u64 = 42;
     let sol_user_liquidity_account = create_and_mint_to_token_account(
-        &mut banks_client,
+        &banks_client,
         spl_token::native_mint::id(),
         None,
         &payer,
@@ -43,7 +43,7 @@ async fn test_success() {
 
     let sol_reserve = TestReserve::init(
         "sol".to_owned(),
-        &mut banks_client,
+        &banks_client,
         &lending_market,
         &sol_oracle,
         RESERVE_AMOUNT,
@@ -55,7 +55,7 @@ async fn test_success() {
     )
     .await
     .unwrap();
-    sol_reserve.validate_state(&mut banks_client).await;
+    sol_reserve.validate_state(&banks_client).await;
 }
 
 #[tokio::test]
@@ -137,11 +137,11 @@ async fn test_invalid_fees() {
     let lending_market = add_lending_market(&mut test);
     let sol_oracle = add_sol_oracle(&mut test);
 
-    let (mut banks_client, payer, _recent_blockhash) = test.start().await;
+    let (banks_client, payer, _recent_blockhash) = test.start().await;
     const RESERVE_AMOUNT: u64 = 42;
 
     let sol_user_liquidity_account = create_and_mint_to_token_account(
-        &mut banks_client,
+        &banks_client,
         spl_token::native_mint::id(),
         None,
         &payer,
@@ -161,7 +161,7 @@ async fn test_invalid_fees() {
         assert_eq!(
             TestReserve::init(
                 "sol".to_owned(),
-                &mut banks_client,
+                &banks_client,
                 &lending_market,
                 &sol_oracle,
                 RESERVE_AMOUNT,
@@ -191,7 +191,7 @@ async fn test_invalid_fees() {
         assert_eq!(
             TestReserve::init(
                 "sol".to_owned(),
-                &mut banks_client,
+                &banks_client,
                 &lending_market,
                 &sol_oracle,
                 RESERVE_AMOUNT,

@@ -31,7 +31,6 @@ pub(super) fn process_refresh_reserve(
     reserve.liquidity.market_price = get_pyth_price(reserve_liquidity_oracle_info, clock)?;
     reserve.accrue_interest(clock.slot)?;
     reserve.last_update.update_slot(clock.slot);
-
     Reserve::pack(reserve, &mut reserve_info.data.borrow_mut())?;
 
     Ok(())

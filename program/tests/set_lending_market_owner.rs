@@ -32,7 +32,7 @@ async fn test_success() {
     test.set_compute_max_units(4_000);
 
     let lending_market = add_lending_market(&mut test);
-    let (mut banks_client, payer, recent_blockhash) = test.start().await;
+    let (banks_client, payer, recent_blockhash) = test.start().await;
     let new_owner = Pubkey::new_unique();
     let mut transaction = Transaction::new_with_payer(
         &[set_lending_market_owner(
@@ -51,7 +51,7 @@ async fn test_success() {
         .map_err(|e| e.unwrap())
         .unwrap();
 
-    let lending_market_info = lending_market.get_state(&mut banks_client).await;
+    let lending_market_info = lending_market.get_state(&banks_client).await;
     assert_eq!(lending_market_info.owner, new_owner);
 }
 #[tokio::test]

@@ -27,16 +27,12 @@ async fn test_success() {
     test.set_compute_max_units(8_000);
     let user_accounts_owner = Keypair::new();
     let lending_market = add_lending_market(&mut test);
-    let (mut banks_client, payer, _recent_blockhash) = test.start().await;
-    let obligation = TestObligation::init(
-        &mut banks_client,
-        &lending_market,
-        &user_accounts_owner,
-        &payer,
-    )
-    .await
-    .unwrap();
-    obligation.validate_state(&mut banks_client).await;
+    let (banks_client, payer, _recent_blockhash) = test.start().await;
+    let obligation =
+        TestObligation::init(&banks_client, &lending_market, &user_accounts_owner, &payer)
+            .await
+            .unwrap();
+    obligation.validate_state(&banks_client).await;
 }
 #[tokio::test]
 async fn test_already_initialized() {

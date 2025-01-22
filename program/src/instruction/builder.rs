@@ -414,8 +414,7 @@ pub fn redeem_reserve_collateral(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::state::ReserveFees;
+    use {super::*, crate::state::ReserveFees};
     #[test]
     fn test_init_lending_market() {
         let program_id = Pubkey::new_unique();

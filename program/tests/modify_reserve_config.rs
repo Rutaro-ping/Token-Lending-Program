@@ -51,7 +51,7 @@ async fn modify_reserve_config_success() {
             ..AddReserveArgs::default()
         },
     );
-    let (mut banks_client, payer, recent_blockhash) = test.start().await;
+    let (banks_client, payer, recent_blockhash) = test.start().await;
     const OPTIMAL_UTILIZATION_RATE_CHANGE: u8 = 10;
     let new_config = ReserveConfig {
         optimal_utilization_rate: TEST_RESERVE_CONFIG.optimal_utilization_rate
@@ -84,7 +84,7 @@ async fn modify_reserve_config_success() {
         .await
         .map_err(|e| e.unwrap())
         .unwrap();
-    let reserve_info = sol_test_reserve.get_state(&mut banks_client).await;
+    let reserve_info = sol_test_reserve.get_state(&banks_client).await;
     assert_eq!(reserve_info.config, new_config);
 }
 
@@ -207,7 +207,7 @@ async fn owner_of_different_lending_market_cannot_change_reserve_config() {
     // Add a different lending market with a *different* owner
     let other_lending_market_owner = Keypair::new();
 
-    let (mut banks_client, payer, recent_blockhash) = test.start().await;
+    let (banks_client, payer, recent_blockhash) = test.start().await;
     // Test modify reserve config instruction
     const OPTIMAL_UTILIZATION_RATE_CHANGE: u8 = 10;
 
@@ -253,7 +253,7 @@ async fn owner_of_different_lending_market_cannot_change_reserve_config() {
         )
     );
 
-    let reserve_info = sol_test_reserve.get_state(&mut banks_client).await;
+    let reserve_info = sol_test_reserve.get_state(&banks_client).await;
     assert_eq!(reserve_info.config, TEST_RESERVE_CONFIG);
 }
 
@@ -297,7 +297,7 @@ async fn correct_owner_providing_wrong_lending_market_fails() {
 
     let other_lending_market = add_lending_market(&mut test);
 
-    let (mut banks_client, payer, recent_blockhash) = test.start().await;
+    let (banks_client, payer, recent_blockhash) = test.start().await;
 
     const OPTIMAL_UTILIZATION_RATE_CHANGE: u8 = 10;
 
@@ -345,6 +345,6 @@ async fn correct_owner_providing_wrong_lending_market_fails() {
         )
     );
 
-    let reserve_info = sol_test_reserve.get_state(&mut banks_client).await;
+    let reserve_info = sol_test_reserve.get_state(&banks_client).await;
     assert_eq!(reserve_info.config, TEST_RESERVE_CONFIG);
 }

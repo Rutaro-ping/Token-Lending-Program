@@ -67,7 +67,7 @@ pub const TEST_RESERVE_CONFIG: ReserveConfig = ReserveConfig {
 #[inline(always)]
 pub async fn get_state<T: Pack + IsInitialized>(
     pub_key: Pubkey,
-    banks_client: &mut BanksClient,
+    banks_client: &BanksClient,
 ) -> Result<T> {
     let account = banks_client
         .get_account(pub_key)
@@ -146,7 +146,7 @@ pub struct TestLendingMarket {
 
 impl TestLendingMarket {
     pub async fn init(
-        banks_client: &mut BanksClient,
+        banks_client: &BanksClient,
         payer: &Keypair,
         params: Option<MarketInitParams>,
     ) -> Self {
@@ -206,7 +206,7 @@ impl TestLendingMarket {
 
     pub async fn deposit(
         &self,
-        banks_client: &mut BanksClient,
+        banks_client: &BanksClient,
         user_accounts_owner: &Keypair,
         payer: &Keypair,
         reserve: &TestReserve,
@@ -247,10 +247,10 @@ impl TestLendingMarket {
         assert_matches!(banks_client.process_transaction(transaction).await, Ok(()));
     }
 
-    pub async fn get_state(&self, banks_client: &mut BanksClient) -> LendingMarket {
+    pub async fn get_state(&self, banks_client: &BanksClient) -> LendingMarket {
         get_state(self.pubkey, banks_client).await.unwrap()
     }
-    pub async fn validate_state(&self, banks_client: &mut BanksClient) {
+    pub async fn validate_state(&self, banks_client: &BanksClient) {
         let lending_market = self.get_state(banks_client).await;
         assert_eq!(lending_market.owner, self.owner.pubkey());
         assert_eq!(lending_market.quote_currency, QUOTE_CURRENCY);
@@ -400,7 +400,7 @@ impl TestReserve {
     #[allow(clippy::too_many_arguments)]
     pub async fn init(
         name: String,
-        banks_client: &mut BanksClient,
+        banks_client: &BanksClient,
         lending_market: &TestLendingMarket,
         oracle: &TestOracle,
         liquidity_amount: u64,
@@ -552,11 +552,11 @@ impl TestReserve {
             .map_err(|e| e.unwrap())
     }
 
-    pub async fn get_state(&self, banks_client: &mut BanksClient) -> Reserve {
+    pub async fn get_state(&self, banks_client: &BanksClient) -> Reserve {
         get_state(self.pubkey, banks_client).await.unwrap()
     }
 
-    pub async fn validate_state(&self, banks_client: &mut BanksClient) {
+    pub async fn validate_state(&self, banks_client: &BanksClient) {
         let reserve = self.get_state(banks_client).await;
         assert!(reserve.last_update.slot > 0);
         assert_eq!(PROGRAM_VERSION, reserve.version);
@@ -824,7 +824,7 @@ pub async fn create_token_account(
     token_pubkey
 }
 
-pub async fn get_token_balance(banks_client: &mut BanksClient, pubkey: Pubkey) -> u64 {
+pub async fn get_token_balance(banks_client: &BanksClient, pubkey: Pubkey) -> u64 {
     let token: Account = banks_client.get_account(pubkey).await.unwrap().unwrap();
 
     spl_token::state::Account::unpack(&token.data[..])
@@ -832,7 +832,7 @@ pub async fn get_token_balance(banks_client: &mut BanksClient, pubkey: Pubkey) -
         .amount
 }
 pub async fn mint_to(
-    banks_client: &mut BanksClient,
+    banks_client: &BanksClient,
     mint_pubkey: Pubkey,
     payer: &Keypair,
     account_pubkey: Pubkey,
@@ -859,7 +859,7 @@ pub async fn mint_to(
 }
 
 pub async fn create_and_mint_to_token_account(
-    banks_client: &mut BanksClient,
+    banks_client: &BanksClient,
     mint_pubkey: Pubkey,
     mint_authority: Option<&Keypair>,
     payer: &Keypair,
@@ -906,13 +906,13 @@ pub struct TestObligationCollateral {
 }
 
 impl TestObligationCollateral {
-    pub async fn get_state(&self, banks_client: &mut BanksClient) -> Obligation {
+    pub async fn get_state(&self, banks_client: &BanksClient) -> Obligation {
         get_state(self.obligation_pubkey, banks_client)
             .await
             .unwrap()
     }
 
-    pub async fn validate_state(&self, banks_client: &mut BanksClient) {
+    pub async fn validate_state(&self, banks_client: &BanksClient) {
         let obligation = self.get_state(banks_client).await;
         assert_eq!(obligation.version, PROGRAM_VERSION);
 
@@ -930,12 +930,12 @@ pub struct TestObligationLiquidity {
 }
 
 impl TestObligationLiquidity {
-    pub async fn get_state(&self, banks_client: &mut BanksClient) -> Obligation {
+    pub async fn get_state(&self, banks_client: &BanksClient) -> Obligation {
         get_state(self.obligation_pubkey, banks_client)
             .await
             .unwrap()
     }
-    pub async fn validate_state(&self, banks_client: &mut BanksClient) {
+    pub async fn validate_state(&self, banks_client: &BanksClient) {
         let obligation = self.get_state(banks_client).await;
         assert_eq!(obligation.version, PROGRAM_VERSION);
         let (liquidity, _) = obligation
@@ -958,7 +958,7 @@ pub struct TestObligation {
 impl TestObligation {
     #[allow(clippy::too_many_arguments)]
     pub async fn init(
-        banks_client: &mut BanksClient,
+        banks_client: &BanksClient,
         lending_market: &TestLendingMarket,
         user_accounts_owner: &Keypair,
         payer: &Keypair,
@@ -1003,10 +1003,10 @@ impl TestObligation {
 
         Ok(obligation)
     }
-    pub async fn get_state(&self, banks_client: &mut BanksClient) -> Obligation {
+    pub async fn get_state(&self, banks_client: &BanksClient) -> Obligation {
         get_state(self.pubkey, banks_client).await.unwrap()
     }
-    pub async fn validate_state(&self, banks_client: &mut BanksClient) {
+    pub async fn validate_state(&self, banks_client: &BanksClient) {
         let obligation = self.get_state(banks_client).await;
         assert_eq!(obligation.version, PROGRAM_VERSION);
         assert_eq!(obligation.lending_market, self.lending_market);

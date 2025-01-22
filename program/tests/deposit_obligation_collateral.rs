@@ -60,14 +60,14 @@ async fn test_success() {
         AddObligationArgs::default(),
     );
 
-    let (mut banks_client, payer, recent_blockhash) = test.start().await;
+    let (banks_client, payer, recent_blockhash) = test.start().await;
 
-    test_obligation.validate_state(&mut banks_client).await;
+    test_obligation.validate_state(&banks_client).await;
 
     let initial_collateral_supply_balance =
-        get_token_balance(&mut banks_client, sol_test_reserve.collateral_supply_pubkey).await;
+        get_token_balance(&banks_client, sol_test_reserve.collateral_supply_pubkey).await;
     let initial_user_collateral_balance =
-        get_token_balance(&mut banks_client, sol_test_reserve.user_collateral_pubkey).await;
+        get_token_balance(&banks_client, sol_test_reserve.user_collateral_pubkey).await;
 
     let mut transaction = Transaction::new_with_payer(
         &[
@@ -103,13 +103,13 @@ async fn test_success() {
 
     // check that collateral tokens were transferred
     let collateral_supply_balance =
-        get_token_balance(&mut banks_client, sol_test_reserve.collateral_supply_pubkey).await;
+        get_token_balance(&banks_client, sol_test_reserve.collateral_supply_pubkey).await;
     assert_eq!(
         collateral_supply_balance,
         initial_collateral_supply_balance + SOL_DEPOSIT_AMOUNT_LAMPORTS
     );
     let user_collateral_balance =
-        get_token_balance(&mut banks_client, sol_test_reserve.user_collateral_pubkey).await;
+        get_token_balance(&banks_client, sol_test_reserve.user_collateral_pubkey).await;
     assert_eq!(
         user_collateral_balance,
         initial_user_collateral_balance - SOL_DEPOSIT_AMOUNT_LAMPORTS

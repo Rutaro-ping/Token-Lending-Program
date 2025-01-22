@@ -22,9 +22,9 @@ async fn test_success() {
         processor!(process_instruction),
     );
     test.set_compute_max_units(20_000);
-    let (mut banks_client, payer, _recent_blockhash) = test.start().await;
-    let test_lending_market = TestLendingMarket::init(&mut banks_client, &payer, None).await;
-    test_lending_market.validate_state(&mut banks_client).await;
+    let (banks_client, payer, _recent_blockhash) = test.start().await;
+    let test_lending_market = TestLendingMarket::init(&banks_client, &payer, None).await;
+    test_lending_market.validate_state(&banks_client).await;
 }
 
 #[tokio::test]

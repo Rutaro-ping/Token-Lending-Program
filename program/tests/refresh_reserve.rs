@@ -74,7 +74,7 @@ async fn test_success() {
     let mut test_context = test.start_with_context().await;
     test_context.warp_to_slot(3).unwrap(); // clock.slot = 3
     let ProgramTestContext {
-        mut banks_client,
+        banks_client,
         payer,
         last_blockhash: recent_blockhash,
         ..
@@ -96,8 +96,8 @@ async fn test_success() {
     );
     transaction.sign(&[&payer], recent_blockhash);
     assert!(banks_client.process_transaction(transaction).await.is_ok());
-    let sol_reserve = sol_test_reserve.get_state(&mut banks_client).await;
-    let usdc_reserve = usdc_test_reserve.get_state(&mut banks_client).await;
+    let sol_reserve = sol_test_reserve.get_state(&banks_client).await;
+    let usdc_reserve = usdc_test_reserve.get_state(&banks_client).await;
     let slot_rate = Rate::from_percent(BORROW_RATE)
         .try_div(SLOTS_PER_YEAR)
         .unwrap();
