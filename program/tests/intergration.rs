@@ -8,8 +8,6 @@ use solana_sdk::signature::Keypair;
 async fn integration_test() {
     let market_owner = Keypair::new();
     let mut test = integration_utils::IntegrationTest::new().await;
-    //open usdc and sol token accounts for both alice and bob
-    test.open_usdc_sol_accounts().await;
 
     //create a market
     test.create_market().await;
@@ -21,6 +19,8 @@ async fn integration_test() {
     test.create_reserves().await;
     //refresh reserves
     test.refresh_reserves().await;
+    //open usdc and sol token accounts, and collateral accounts for both alice and bob
+    test.open_accounts().await;
     //create obligations
     test.create_obligations().await;
 

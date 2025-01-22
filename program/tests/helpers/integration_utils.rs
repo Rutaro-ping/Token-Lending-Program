@@ -1,4 +1,4 @@
-use std::{collections::HashMap, str::FromStr};
+use std::collections::HashMap;
 
 use solana_program_test::{
     processor, BanksClient, BanksClientError, ProgramTest, ProgramTestContext,
@@ -16,14 +16,14 @@ use solana_sdk::{
     transaction::{Transaction, TransactionError},
 };
 use spl_token::{
-    instruction::{mint_to, sync_native},
+    instruction::{approve, mint_to, sync_native},
     state::{Account as TokenAccount, Mint},
 };
 use spl_token_lending::{
     error::LendingError,
     instruction::builder::{
-        borrow_obligation_liquidity, deposit_obligation_collateral, refresh_obligation,
-        refresh_reserve, set_lending_market_owner,
+        borrow_obligation_liquidity, deposit_obligation_collateral, deposit_reserve_liquidity,
+        refresh_obligation, refresh_reserve, set_lending_market_owner,
     },
     processor::process_instruction,
 };
@@ -31,9 +31,9 @@ use spl_token_lending::{
 use crate::helpers::{get_token_balance, MarketInitParams, LAMPORTS_TO_SOL};
 
 use super::{
-    add_sol_oracle, add_usdc_mint, add_usdc_oracle, create_and_mint_to_token_account, get_state,
-    TestLendingMarket, TestMint, TestObligation, TestOracle, TestReserve, FRACTIONAL_TO_USDC,
-    TEST_RESERVE_CONFIG,
+    add_sol_oracle, add_usdc_mint, add_usdc_oracle, create_and_mint_to_token_account,
+    create_token_account, get_state, TestLendingMarket, TestMint, TestObligation, TestOracle,
+    TestReserve, FRACTIONAL_TO_USDC, TEST_RESERVE_CONFIG,
 };
 
 pub(crate) const INIT_RESERVE_SOL_AMOUNT: u64 = 10 * LAMPORTS_PER_SOL;
@@ -43,9 +43,12 @@ pub(crate) const BORROWER_NAME_LIST: [&str; 2] = ["alice", "bob"];
 pub(crate) struct Borrower {
     pub name: &'static str,
     pub obligation: Option<TestObligation>,
-    pub keypair: Keypair,
+    pub keypair: Keypair, // usually used as owner for entities like obligation, token accounts of this u, etc.
+    pub user_transfer_authority: Keypair, //showcase to delegate the authority of the owner
     pub usdc_account: Option<Pubkey>,
+    pub usdc_collateral_account: Option<Pubkey>,
     pub sol_account: Option<Pubkey>,
+    pub sol_collateral_account: Option<Pubkey>,
 }
 pub(crate) struct IntegrationTest {
     test_context: ProgramTestContext,
@@ -84,8 +87,11 @@ impl IntegrationTest {
                         name: name.to_owned(),
                         obligation: None,
                         keypair: Keypair::new(),
+                        user_transfer_authority: Keypair::new(),
                         usdc_account: None,
+                        usdc_collateral_account: None,
                         sol_account: None,
+                        sol_collateral_account: None,
                     },
                 )
             })
@@ -108,7 +114,7 @@ impl IntegrationTest {
         }
     }
 
-    pub async fn open_usdc_sol_accounts(&mut self) {
+    pub async fn open_accounts(&mut self) {
         const OPEN_ACCOUNT_AMOUNT: u64 = 1;
 
         async fn setup_accounts(
@@ -157,7 +163,8 @@ impl IntegrationTest {
             assert_eq!(sol_account.owner, borrower.keypair.pubkey());
             assert_eq!(sol_account.is_native, COption::Some(2039280)); //which the rent-exempt amount
         }
-
+        let sol_colletaral_mint = self.sol_reserve.as_ref().unwrap().collateral_mint_pubkey;
+        let usdc_colletaral_mint = self.usdc_reserve.as_ref().unwrap().collateral_mint_pubkey;
         for name in ["alice", "bob"] {
             let borrower = self.borrowers.get_mut(name).unwrap();
             setup_accounts(
@@ -167,6 +174,26 @@ impl IntegrationTest {
                 &self.usdc_mint,
             )
             .await;
+            borrower.sol_collateral_account = Some(
+                create_token_account(
+                    &self.test_context.banks_client,
+                    sol_colletaral_mint,
+                    &self.test_context.payer,
+                    Some(borrower.keypair.pubkey()),
+                    None,
+                )
+                .await,
+            );
+            borrower.usdc_collateral_account = Some(
+                create_token_account(
+                    &self.test_context.banks_client,
+                    usdc_colletaral_mint,
+                    &self.test_context.payer,
+                    Some(borrower.keypair.pubkey()),
+                    None,
+                )
+                .await,
+            );
         }
     }
 
@@ -553,5 +580,41 @@ impl IntegrationTest {
             .process_transaction(transaction)
             .await;
         assert!(result.is_ok());
+    }
+
+    async fn deposit_reserve_liquidity(
+        &mut self,
+        reserve: &TestReserve,
+        borrower: &Borrower,
+        liquidity_amount: u64,
+    ) {
+        let user_accounts_owner = &self.user_accounts_owner;
+        let payer = &self.test_context.payer;
+
+        let mut transaction = Transaction::new_with_payer(
+            &[
+                approve(
+                    &spl_token::id(),
+                    &reserve.user_liquidity_pubkey,
+                    &borrower.user_transfer_authority.pubkey(),
+                    &user_accounts_owner.pubkey(),
+                    &[],
+                    liquidity_amount,
+                )
+                .unwrap(),
+                deposit_reserve_liquidity(
+                    spl_token_lending::id(),
+                    liquidity_amount,
+                    borrower.sol_account.unwrap(),
+                    reserve.user_collateral_pubkey,
+                    reserve.pubkey,
+                    reserve.liquidity_supply_pubkey,
+                    reserve.collateral_mint_pubkey,
+                    self.lending_market.as_ref().unwrap().pubkey,
+                    borrower.user_transfer_authority.pubkey(),
+                ),
+            ],
+            Some(&payer.pubkey()),
+        );
     }
 }

@@ -785,7 +785,7 @@ pub fn add_reserve(
 }
 
 pub async fn create_token_account(
-    banks_client: &mut BanksClient,
+    banks_client: &BanksClient,
     mint_pubkey: Pubkey,
     payer: &Keypair,
     authority: Option<Pubkey>,
