@@ -27,5 +27,6 @@ async fn integration_test() {
     test.alice_borrow_sol_without_collateral().await;
     //by default it airdrop 1000 tokens to each account of each borrower in respect mint type.
     test.top_up_token_accounts().await;
-    
+    test.alice_deposit_usdc_reserve(1000).await;
+    test.alice_deposit_usdc_collateral_to_obligations(1000).await;
 }

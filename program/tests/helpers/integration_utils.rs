@@ -41,7 +41,7 @@ pub(crate) const INIT_RESERVE_USDC_AMOUNT: u64 = 10 * FRACTIONAL_TO_USDC;
 pub(crate) const BORROWER_NAME_LIST: [&str; 2] = ["alice", "bob"];
 pub(crate) const CURRENCY_TYPE: [&str; 2] = ["usd", "sol"];
 
-struct BorrowerAccounts {
+pub(crate) struct BorrowerAccounts {
     pub token_account: Pubkey,
     pub collateral_account: Pubkey,
 }
@@ -51,10 +51,6 @@ pub(crate) struct Borrower {
     pub obligation: Option<TestObligation>,
     pub keypair: Keypair, // usually used as owner for entities like obligation, token accounts of this u, etc.
     pub user_transfer_authority: Keypair, //showcase to delegate the authority of the owner
-    // pub usdc_account: Option<Pubkey>,
-    // pub usdc_collateral_account: Option<Pubkey>,
-    // pub sol_account: Option<Pubkey>,
-    // pub sol_collateral_account: Option<Pubkey>,
     pub accounts: HashMap<&'static str, BorrowerAccounts>,
 }
 pub(crate) struct IntegrationTest {
@@ -418,9 +414,23 @@ impl IntegrationTest {
             )
         );
     }
-    pub async fn alice_deposit_usdc_reserve(&mut self, amount: u64) {
+    pub async fn alice_deposit_usdc_reserve(&self, amount: u64) {
         let usdc_reserve = self.usdc_reserve.as_ref().unwrap();
         let alice_borrower = self.borrowers.get("alice").unwrap();
+        self.deposit_reserve_liquidity(
+            usdc_reserve,
+            alice_borrower,
+            amount,
+            &alice_borrower.user_transfer_authority,
+            "usdc",
+        )
+        .await;
+    }
+    pub async fn alice_deposit_usdc_collateral_to_obligations(&self, amount: u64) {
+        let usdc_reserve = self.usdc_reserve.as_ref().unwrap();
+        let alice_borrower = self.borrowers.get("alice").unwrap();
+        self.deposit_obligations(alice_borrower, usdc_reserve, "usdc", amount)
+            .await;
     }
     pub async fn alice_deposit_sol_collateral(&mut self) {
         let sol_reserve = self.sol_reserve.as_ref().unwrap();
@@ -437,13 +447,6 @@ impl IntegrationTest {
             .await
             .unwrap();
         msg!("mint: {:#?}", mint);
-
-        // self.airdrop_native_sol(1000, alice_borrower.obligation.unwrap())
-        //     .await;
-
-        // msg!("balance: {:?}", balance);
-        // self.airdrop_native_sol(2, sol_reserve.user_collateral_pubkey)
-        //     .await;
         const SOL_DEPOSIT_AMOUNT_LAMPORTS: u64 = 1000 * LAMPORTS_PER_SOL;
         let mut transaction = Transaction::new_with_payer(
             &[deposit_obligation_collateral(
@@ -600,21 +603,21 @@ impl IntegrationTest {
     }
 
     async fn deposit_reserve_liquidity(
-        &mut self,
+        &self,
         reserve: &TestReserve,
         borrower: &Borrower,
         liquidity_amount: u64,
         user_transfer_authority: &Keypair,
-        from_account: Pubkey,
-        collateral_account: Pubkey,
+        currency: &str, //"sol" or "usdc"
     ) {
         let payer = &self.test_context.payer;
+        let accounts = borrower.accounts.get(currency).unwrap();
 
         let mut transaction = Transaction::new_with_payer(
             &[
                 approve(
                     &spl_token::id(),
-                    &reserve.user_liquidity_pubkey,
+                    &accounts.token_account,
                     &borrower.user_transfer_authority.pubkey(),
                     &borrower.keypair.pubkey(),
                     &[],
@@ -624,8 +627,8 @@ impl IntegrationTest {
                 deposit_reserve_liquidity(
                     spl_token_lending::id(),
                     liquidity_amount,
-                    from_account,
-                    collateral_account,
+                    accounts.token_account,
+                    accounts.collateral_account,
                     reserve.pubkey,
                     reserve.liquidity_supply_pubkey,
                     reserve.collateral_mint_pubkey,
@@ -645,5 +648,65 @@ impl IntegrationTest {
             &[payer, &borrower.keypair, &user_transfer_authority],
             recent_blockhash,
         );
+        self.test_context
+            .banks_client
+            .process_transaction(transaction)
+            .await
+            .unwrap();
+    }
+    pub async fn deposit_obligations(
+        &self,
+        borrower: &Borrower,
+        reserve: &TestReserve,
+        currency: &str, //"sol" or "usdc"
+        collateral_amount: u64,
+    ) {
+        let obligation = borrower.obligation.as_ref().unwrap();
+        let lending_market = self.lending_market.as_ref().unwrap();
+        let accounts = borrower.accounts.get(currency).unwrap();
+        let mut transaction = Transaction::new_with_payer(
+            &[
+                approve(
+                    &spl_token::id(),
+                    &accounts.collateral_account,
+                    &borrower.user_transfer_authority.pubkey(),
+                    &borrower.keypair.pubkey(),
+                    &[],
+                    collateral_amount,
+                )
+                .unwrap(),
+                deposit_obligation_collateral(
+                    spl_token_lending::id(),
+                    collateral_amount,
+                    accounts.collateral_account,
+                    reserve.collateral_supply_pubkey,
+                    reserve.pubkey,
+                    obligation.pubkey,
+                    lending_market.pubkey,
+                    obligation.owner,
+                    borrower.user_transfer_authority.pubkey(),
+                ),
+            ],
+            Some(&self.test_context.payer.pubkey()),
+        );
+        let recent_blockhash = self
+            .test_context
+            .banks_client
+            .get_latest_blockhash()
+            .await
+            .unwrap();
+        transaction.sign(
+            &[
+                &self.test_context.payer,
+                &borrower.keypair,
+                &borrower.user_transfer_authority,
+            ],
+            recent_blockhash,
+        );
+        self.test_context
+            .banks_client
+            .process_transaction(transaction)
+            .await
+            .unwrap();
     }
 }
