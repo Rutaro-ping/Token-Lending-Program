@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-
+use crate::sign_and_execute;
 use solana_program_test::{
     processor, BanksClient, BanksClientError, ProgramTest, ProgramTestContext,
 };
@@ -27,6 +26,7 @@ use spl_token_lending::{
     },
     processor::process_instruction,
 };
+use std::collections::HashMap;
 
 use crate::helpers::{get_token_balance, MarketInitParams, LAMPORTS_TO_SOL};
 
@@ -221,7 +221,6 @@ impl IntegrationTest {
             .get_state(&mut self.test_context.banks_client)
             .await;
         assert_eq!(market.owner, test_lending_market.owner.pubkey());
-        // self.lending_market = Some(test_lending_market);
         self.lending_market = Some(test_lending_market);
     }
     pub async fn change_market_owner(&mut self, market_owner: Keypair) {
@@ -235,18 +234,8 @@ impl IntegrationTest {
             )],
             Some(&self.test_context.payer.pubkey()),
         );
-        // //update the owner of the lending market after it updated onchain.
 
-        transaction.sign(
-            &[&self.test_context.payer, &lending_market.owner],
-            self.test_context.last_blockhash,
-        );
-        self.test_context
-            .banks_client
-            .process_transaction(transaction)
-            .await
-            .map_err(|e| e.unwrap())
-            .unwrap();
+        sign_and_execute!(self, transaction, &lending_market.owner).unwrap();
 
         let market = lending_market
             .get_state(&mut self.test_context.banks_client)
@@ -358,16 +347,8 @@ impl IntegrationTest {
             ],
             Some(&self.test_context.payer.pubkey()),
         );
-        transaction.sign(
-            &[&self.test_context.payer],
-            self.test_context.last_blockhash,
-        );
-        assert!(self
-            .test_context
-            .banks_client
-            .process_transaction(transaction)
-            .await
-            .is_ok());
+
+        assert!(sign_and_execute!(self, transaction).is_ok());
     }
 
     pub async fn create_obligations(&mut self) {
@@ -431,50 +412,6 @@ impl IntegrationTest {
         let alice_borrower = self.borrowers.get("alice").unwrap();
         self.deposit_obligations(alice_borrower, usdc_reserve, "usdc", amount)
             .await;
-    }
-    pub async fn alice_deposit_sol_collateral(&mut self) {
-        let sol_reserve = self.sol_reserve.as_ref().unwrap();
-        let alice_borrower = self.borrowers.get("alice").unwrap();
-        let alice_obligation = alice_borrower.obligation.as_ref().unwrap();
-        let token_account = get_state::<TokenAccount>(
-            sol_reserve.user_collateral_pubkey,
-            &mut self.test_context.banks_client,
-        )
-        .await
-        .unwrap();
-        msg!("token_account: {:#?}", token_account);
-        let mint = get_state::<Mint>(token_account.mint, &mut self.test_context.banks_client)
-            .await
-            .unwrap();
-        msg!("mint: {:#?}", mint);
-        const SOL_DEPOSIT_AMOUNT_LAMPORTS: u64 = 1000 * LAMPORTS_PER_SOL;
-        let mut transaction = Transaction::new_with_payer(
-            &[deposit_obligation_collateral(
-                spl_token_lending::id(),
-                SOL_DEPOSIT_AMOUNT_LAMPORTS,
-                sol_reserve.user_collateral_pubkey,
-                sol_reserve.collateral_supply_pubkey,
-                sol_reserve.pubkey,
-                alice_obligation.pubkey,
-                self.lending_market.as_ref().unwrap().pubkey,
-                alice_obligation.owner,
-                self.user_accounts_owner.pubkey(),
-            )],
-            Some(&self.test_context.payer.pubkey()),
-        );
-        transaction.sign(
-            &[
-                &self.test_context.payer,
-                &self.user_accounts_owner,
-                &alice_borrower.keypair,
-            ],
-            self.test_context.last_blockhash,
-        );
-        self.test_context
-            .banks_client
-            .process_transaction(transaction)
-            .await
-            .unwrap();
     }
 
     pub async fn top_up_token_accounts(&mut self) {
@@ -541,14 +478,12 @@ impl IntegrationTest {
             ],
             Some(&self.test_context.payer.pubkey()),
         );
-        transaction.sign(
-            &[&self.test_context.payer, &borrower.keypair],
-            self.test_context.last_blockhash,
-        );
-        self.test_context
-            .banks_client
-            .process_transaction(transaction)
-            .await
+        sign_and_execute!(
+            self,
+            transaction,
+            &self.test_context.payer,
+            &borrower.keypair
+        )
     }
     //provide airdrop for native SOL
     async fn airdrop_native_sol(&self, amount: u64, to_account: Pubkey) {
@@ -564,15 +499,7 @@ impl IntegrationTest {
             ],
             Some(&self.test_context.payer.pubkey()),
         );
-        transaction.sign(
-            &[&self.test_context.payer],
-            self.test_context.last_blockhash,
-        );
-        let result = self
-            .test_context
-            .banks_client
-            .process_transaction(transaction)
-            .await;
+        let result = sign_and_execute!(self, transaction, &self.test_context.payer);
         assert!(result.is_ok());
     }
 
@@ -590,15 +517,13 @@ impl IntegrationTest {
             .unwrap()],
             Some(&self.test_context.payer.pubkey()),
         );
-        transaction.sign(
-            &[&self.test_context.payer, &self.usdc_mint.authority],
-            self.test_context.last_blockhash,
+
+        let result = sign_and_execute!(
+            self,
+            transaction,
+            &self.test_context.payer,
+            &self.usdc_mint.authority
         );
-        let result = self
-            .test_context
-            .banks_client
-            .process_transaction(transaction)
-            .await;
         assert!(result.is_ok());
     }
 
@@ -607,7 +532,6 @@ impl IntegrationTest {
         reserve: &TestReserve,
         borrower: &Borrower,
         liquidity_amount: u64,
-        user_transfer_authority: &Keypair,
         currency: &str, //"sol" or "usdc"
     ) {
         let payer = &self.test_context.payer;
@@ -638,21 +562,13 @@ impl IntegrationTest {
             ],
             Some(&payer.pubkey()),
         );
-        let recent_blockhash = self
-            .test_context
-            .banks_client
-            .get_latest_blockhash()
-            .await
-            .unwrap();
-        transaction.sign(
-            &[payer, &borrower.keypair, &user_transfer_authority],
-            recent_blockhash,
-        );
-        self.test_context
-            .banks_client
-            .process_transaction(transaction)
-            .await
-            .unwrap();
+        sign_and_execute!(
+            self,
+            transaction,
+            &borrower.keypair,
+            &borrower.user_transfer_authority
+        )
+        .unwrap()
     }
     pub async fn deposit_obligations(
         &self,
@@ -689,24 +605,34 @@ impl IntegrationTest {
             ],
             Some(&self.test_context.payer.pubkey()),
         );
-        let recent_blockhash = self
-            .test_context
-            .banks_client
-            .get_latest_blockhash()
-            .await
-            .unwrap();
-        transaction.sign(
-            &[
-                &self.test_context.payer,
-                &borrower.keypair,
-                &borrower.user_transfer_authority,
-            ],
-            recent_blockhash,
+        let result = sign_and_execute!(
+            self,
+            transaction,
+            &borrower.keypair,
+            &borrower.user_transfer_authority
         );
-        self.test_context
-            .banks_client
-            .process_transaction(transaction)
-            .await
-            .unwrap();
+        assert!(result.is_ok());
     }
+}
+
+#[macro_export]
+macro_rules! sign_and_execute {
+    ($self:expr, $transaction:expr $(, $signer:expr)* $(,)?) => {{
+        // let recent_blockhash = $self
+        //     .test_context
+        //     .banks_client
+        //     .get_latest_blockhash()
+        //     .await
+        //     .unwrap();
+
+        $transaction.sign(
+            &[&$self.test_context.payer $(, $signer)*],
+            $self.test_context.last_blockhash,
+        );
+
+        $self.test_context
+            .banks_client
+            .process_transaction($transaction)
+            .await
+    }};
 }
