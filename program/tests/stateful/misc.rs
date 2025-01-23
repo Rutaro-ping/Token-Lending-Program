@@ -9,7 +9,7 @@ impl IntegrationTest {
     }
 
     pub async fn alice_borrow_sol_without_collateral(&self) {
-        let reserve = self.sol_reserve.as_ref().unwrap();
+        let reserve = self.reserves.get("sol").unwrap();
         let alice_borrower = self.borrowers.get("alice").unwrap();
         let result = self
             .borrow_obligation_liquidity(reserve, alice_borrower)
@@ -23,17 +23,15 @@ impl IntegrationTest {
         );
     }
     pub async fn alice_deposit_usdc_reserve(&self, amount: u64) {
-        let usdc_reserve = self.usdc_reserve.as_ref().unwrap();
         let alice_borrower = self.borrowers.get("alice").unwrap();
-        self.deposit_reserve_liquidity(usdc_reserve, alice_borrower, amount, "usdc")
+        self.deposit_reserve_liquidity(alice_borrower, amount, "usdc")
             .await;
     }
 
     pub async fn alice_deposit_usdc_collateral_to_obligations(&mut self, amount: u64) {
         self.refresh_reserves().await;
-        let usdc_reserve = self.usdc_reserve.as_ref().unwrap();
         let alice_borrower = self.borrowers.get("alice").unwrap();
-        self.deposit_obligations(alice_borrower, usdc_reserve, "usdc", amount)
+        self.deposit_obligations(alice_borrower, "usdc", amount)
             .await;
     }
 }

@@ -63,8 +63,8 @@ impl IntegrationTest {
             assert_eq!(sol_account_info.is_native, COption::Some(2039280)); //which the rent-exempt amount
             (usdc_account, sol_account)
         }
-        let sol_colletaral_mint = self.sol_reserve.as_ref().unwrap().collateral_mint_pubkey;
-        let usdc_colletaral_mint = self.usdc_reserve.as_ref().unwrap().collateral_mint_pubkey;
+        let sol_colletaral_mint = self.reserves.get("sol").unwrap().collateral_mint_pubkey;
+        let usdc_colletaral_mint = self.reserves.get("usdc").unwrap().collateral_mint_pubkey;
         for name in ["alice", "bob"] {
             let borrower = self.borrowers.get_mut(name).unwrap();
             let (usdc_account, sol_account) = setup_accounts(

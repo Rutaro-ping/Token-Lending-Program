@@ -12,19 +12,17 @@ use crate::helpers::{
 pub(crate) const INIT_RESERVE_SOL_AMOUNT: u64 = 10 * LAMPORTS_PER_SOL;
 pub(crate) const INIT_RESERVE_USDC_AMOUNT: u64 = 10 * FRACTIONAL_TO_USDC;
 pub(crate) const BORROWER_NAME_LIST: [&str; 2] = ["alice", "bob"];
-pub(crate) const CURRENCY_TYPE: [&str; 2] = ["usd", "sol"];
+pub(crate) const CURRENCY_TYPE: [&str; 2] = ["usdc", "sol"];
 
 pub(crate) struct IntegrationTest {
     pub test_context: ProgramTestContext,
-    pub sol_oracle: TestOracle,
-    pub usdc_oracle: TestOracle,
+    pub oracles: HashMap<&'static str, TestOracle>,
     pub usdc_mint: TestMint,
     pub lending_market: Option<TestLendingMarket>,
     pub user_accounts_owner: Keypair,
     pub init_sol_user_liquidity_account: Pubkey,
     pub init_usdc_user_liquidity_account: Pubkey,
-    pub sol_reserve: Option<TestReserve>,
-    pub usdc_reserve: Option<TestReserve>,
+    pub reserves: HashMap<&'static str, TestReserve>,
     pub borrowers: HashMap<&'static str, Borrower>,
 }
 
@@ -58,19 +56,17 @@ impl IntegrationTest {
             })
             .collect::<HashMap<&str, Borrower>>();
 
+        let oracles = HashMap::from([("sol", sol_oracle), ("usdc", usdc_oracle)]);
+
         IntegrationTest {
             test_context: test.start_with_context().await,
-            sol_oracle,
-            usdc_oracle,
+            oracles,
             usdc_mint,
             lending_market: None,
             user_accounts_owner: Keypair::new(),
-            //below two accounts used to be init supply for reserves,
-            // one for sol reserve, one for usdc reserve
             init_sol_user_liquidity_account: Pubkey::default(),
             init_usdc_user_liquidity_account: Pubkey::default(),
-            sol_reserve: None,
-            usdc_reserve: None,
+            reserves: HashMap::default(),
             borrowers,
         }
     }
@@ -83,7 +79,7 @@ pub(crate) struct BorrowerAccounts {
 pub(crate) struct Borrower {
     pub name: &'static str,
     pub obligation: Option<TestObligation>,
-    pub keypair: Keypair, /* usually used as owner for entities like obligation, token accounts
+    pub keypair: Keypair, /* usually used as owner for entities like the obligation, token accounts
                            * of this u, etc. */
     pub user_transfer_authority: Keypair, //showcase to delegate the authority of the owner
     pub accounts: HashMap<&'static str, BorrowerAccounts>,

@@ -45,13 +45,14 @@ impl IntegrationTest {
     pub async fn deposit_obligations(
         &self,
         borrower: &Borrower,
-        reserve: &TestReserve,
+
         currency: &str, //"sol" or "usdc"
         collateral_amount: u64,
     ) {
         let obligation = borrower.obligation.as_ref().unwrap();
         let lending_market = self.lending_market.as_ref().unwrap();
         let accounts = borrower.accounts.get(currency).unwrap();
+        let reserve = self.reserves.get(currency).unwrap();
         let mut transaction = Transaction::new_with_payer(
             &[
                 approve(
@@ -92,13 +93,10 @@ impl IntegrationTest {
     ) -> Result<(), BanksClientError> {
         let obligation = borrower.obligation.as_ref().unwrap();
         let lending_market = self.lending_market.as_ref().unwrap();
+        let oracle = self.oracles.get("sol").unwrap();
         let mut transaction = Transaction::new_with_payer(
             &[
-                refresh_reserve(
-                    spl_token_lending::id(),
-                    reserve.pubkey,
-                    self.sol_oracle.price_pubkey,
-                ),
+                refresh_reserve(spl_token_lending::id(), reserve.pubkey, oracle.price_pubkey),
                 refresh_obligation(spl_token_lending::id(), obligation.pubkey, vec![]),
                 borrow_obligation_liquidity(
                     spl_token_lending::id(),
