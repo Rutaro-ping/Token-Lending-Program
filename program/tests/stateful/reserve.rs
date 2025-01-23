@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 
-use solana_sdk::{msg, signer::Signer, transaction::Transaction};
+use solana_sdk::{signer::Signer, transaction::Transaction};
 use spl_token::instruction::approve;
-use spl_token_lending::instruction::builder::{deposit_reserve_liquidity, refresh_reserve};
+use spl_token_lending::instruction::builder::{
+    deposit_reserve_liquidity, redeem_reserve_collateral, refresh_reserve,
+};
 
 use super::{Borrower, IntegrationTest, INIT_RESERVE_SOL_AMOUNT, INIT_RESERVE_USDC_AMOUNT};
 use crate::{
@@ -106,5 +108,42 @@ impl IntegrationTest {
             &borrower.user_transfer_authority
         )
         .unwrap()
+    }
+
+    pub async fn redeem_reserve_liquidity(&self, amount: u64, borrower: &Borrower, currency: &str) {
+        let reserve = self.reserves.get(currency).unwrap();
+        let accounts = borrower.accounts.get(currency).unwrap();
+        let mut transaction = Transaction::new_with_payer(
+            &[
+                approve(
+                    &spl_token::id(),
+                    &accounts.collateral_account,
+                    &borrower.user_transfer_authority.pubkey(),
+                    &borrower.keypair.pubkey(),
+                    &[],
+                    amount,
+                )
+                .unwrap(),
+                redeem_reserve_collateral(
+                    spl_token_lending::id(),
+                    amount,
+                    accounts.collateral_account,
+                    accounts.token_account,
+                    reserve.pubkey,
+                    reserve.collateral_mint_pubkey,
+                    reserve.liquidity_supply_pubkey,
+                    self.lending_market.as_ref().unwrap().pubkey,
+                    borrower.user_transfer_authority.pubkey(),
+                ),
+            ],
+            Some(&self.test_context.payer.pubkey()),
+        );
+
+        sign_and_execute!(
+            self,
+            transaction,
+            &borrower.keypair,
+            &borrower.user_transfer_authority
+        )
     }
 }

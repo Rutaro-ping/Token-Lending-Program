@@ -1,13 +1,14 @@
 use solana_program_test::BanksClientError;
-use solana_sdk::{signer::Signer, transaction::Transaction};
+use solana_sdk::{pubkey::Pubkey, signer::Signer, transaction::Transaction};
 use spl_token::instruction::approve;
 use spl_token_lending::instruction::builder::{
-    borrow_obligation_liquidity, deposit_obligation_collateral, refresh_obligation, refresh_reserve,
+    borrow_obligation_liquidity, deposit_obligation_collateral, refresh_obligation,
+    refresh_reserve, withdraw_obligation_collateral,
 };
 
 use super::{Borrower, IntegrationTest};
 use crate::{
-    helpers::{TestObligation, TestReserve, FRACTIONAL_TO_USDC},
+    helpers::{TestObligation, FRACTIONAL_TO_USDC},
     sign_and_execute,
 };
 
@@ -102,14 +103,17 @@ impl IntegrationTest {
         } else {
             u64::MAX
         };
+
+        let obligation_state = obligation.get_state(&self.test_context.banks_client).await;
+        let reserve_pubkeys = obligation_state
+            .deposits
+            .iter()
+            .map(|deposit| deposit.deposit_reserve)
+            .collect::<Vec<Pubkey>>();
         let mut transaction = Transaction::new_with_payer(
             &[
                 refresh_reserve(spl_token_lending::id(), reserve.pubkey, oracle.price_pubkey),
-                refresh_obligation(
-                    spl_token_lending::id(),
-                    obligation.pubkey,
-                    vec![reserve.pubkey],
-                ),
+                refresh_obligation(spl_token_lending::id(), obligation.pubkey, reserve_pubkeys),
                 borrow_obligation_liquidity(
                     spl_token_lending::id(),
                     borrow_amount,
@@ -132,6 +136,37 @@ impl IntegrationTest {
             &self.test_context.payer,
             &borrower.keypair
         )
+    }
+    async fn withdraw_obligation_liquidity(
+        &self,
+        borrower: &Borrower,
+        currency: &str,
+        amount: u64,
+    ) {
+        let obligation = borrower.obligation.as_ref().unwrap();
+        let reserve = self.reserves.get(currency).unwrap();
+        let accounts = borrower.accounts.get(currency).unwrap();
+        let mut transaction = Transaction::new_with_payer(
+            &[
+                refresh_obligation(
+                    spl_token_lending::id(),
+                    obligation.pubkey,
+                    vec![reserve.pubkey],
+                ),
+                withdraw_obligation_collateral(
+                    spl_token_lending::id(),
+                    amount,
+                    accounts.collateral_account,
+                    accounts.token_account,
+                    reserve.pubkey,
+                    obligation.pubkey,
+                    self.lending_market.as_ref().unwrap().pubkey,
+                    obligation.owner,
+                ),
+            ],
+            Some(&self.test_context.payer.pubkey()),
+        );
+        sign_and_execute!(self, transaction, &borrower.keypair,)
     }
     //provide airdrop for native SOL
 }

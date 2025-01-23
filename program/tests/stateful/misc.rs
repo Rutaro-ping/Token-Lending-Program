@@ -1,4 +1,4 @@
-use solana_sdk::{instruction::InstructionError, transaction::TransactionError};
+use solana_sdk::{instruction::InstructionError, msg, transaction::TransactionError};
 use spl_token_lending::error::LendingError;
 
 use super::IntegrationTest;
@@ -38,7 +38,23 @@ impl IntegrationTest {
         let result = self
             .borrow_obligation_liquidity("sol", alice_borrower, Some(100), None)
             .await;
-        assert!(result.is_ok());
+
+        assert_eq!(
+            result.unwrap_err().unwrap(),
+            TransactionError::InstructionError(
+                2,
+                InstructionError::Custom(LendingError::BorrowTooLarge as u32)
+            )
+        );
+    }
+    pub async fn bob_deposit_sol_reserve(&self, amount: u64) {
+        let bob_borrower = self.borrowers.get("bob").unwrap();
+        self.deposit_reserve_liquidity(bob_borrower, amount, "sol")
+            .await;
+    }
+    pub async fn bob_deposit_sol_collateral_to_obligations(&mut self, amount: u64) {
+        let bob_borrower = self.borrowers.get("bob").unwrap();
+        self.deposit_obligations(bob_borrower, "sol", amount).await;
     }
 }
 
