@@ -16,6 +16,8 @@ use crate::{
 impl IntegrationTest {
     pub async fn create_reserves(&mut self) {
         let lending_market = self.lending_market.as_ref().unwrap();
+        let (init_sol_user_liquidity_account, init_usdc_user_liquidity_account) =
+            self.create_init_user_supply_accounts().await;
 
         let sol_reserve = TestReserve::init(
             "sol".to_owned(),
@@ -25,7 +27,7 @@ impl IntegrationTest {
             INIT_RESERVE_SOL_AMOUNT,
             TEST_RESERVE_CONFIG,
             spl_token::native_mint::id(),
-            self.init_sol_user_liquidity_account,
+            init_sol_user_liquidity_account,
             &self.test_context.payer,
             &self.user_accounts_owner,
         )
@@ -40,7 +42,7 @@ impl IntegrationTest {
             INIT_RESERVE_USDC_AMOUNT,
             TEST_RESERVE_CONFIG,
             self.usdc_mint.pubkey,
-            self.init_usdc_user_liquidity_account,
+            init_usdc_user_liquidity_account,
             &self.test_context.payer,
             &self.user_accounts_owner,
         )

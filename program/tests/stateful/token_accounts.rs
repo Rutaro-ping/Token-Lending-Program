@@ -109,7 +109,7 @@ impl IntegrationTest {
         }
     }
 
-    pub async fn create_init_user_supply_accounts(&mut self) {
+    pub async fn create_init_user_supply_accounts(&self) -> (Pubkey, Pubkey) {
         let init_sol_user_liquidity_account = create_and_mint_to_token_account(
             &self.test_context.banks_client,
             spl_token::native_mint::id(),
@@ -153,8 +153,10 @@ impl IntegrationTest {
         )
         .await;
         assert_eq!(usdc_balance, INIT_RESERVE_USDC_AMOUNT);
-        self.init_sol_user_liquidity_account = init_sol_user_liquidity_account;
-        self.init_usdc_user_liquidity_account = init_usdc_user_liquidity_account;
+        (
+            init_sol_user_liquidity_account,
+            init_usdc_user_liquidity_account,
+        )
     }
     pub async fn top_up_token_accounts(&mut self) {
         const TOP_UP_AMOUNT: u64 = 1000;

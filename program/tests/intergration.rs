@@ -14,7 +14,6 @@ async fn integration_test() {
     //change the market owner to the market owner
     test.change_market_owner(market_owner).await;
     //create init user supply accounts
-    test.create_init_user_supply_accounts().await;
     //create reserves
     test.create_reserves().await;
     //refresh reserves

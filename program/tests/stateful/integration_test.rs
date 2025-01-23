@@ -20,8 +20,6 @@ pub(crate) struct IntegrationTest {
     pub usdc_mint: TestMint,
     pub lending_market: Option<TestLendingMarket>,
     pub user_accounts_owner: Keypair,
-    pub init_sol_user_liquidity_account: Pubkey,
-    pub init_usdc_user_liquidity_account: Pubkey,
     pub reserves: HashMap<&'static str, TestReserve>,
     pub borrowers: HashMap<&'static str, Borrower>,
 }
