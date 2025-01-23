@@ -1,4 +1,4 @@
-use solana_sdk::{instruction::InstructionError, msg, transaction::TransactionError};
+use solana_sdk::{instruction::InstructionError, transaction::TransactionError};
 use spl_token_lending::error::LendingError;
 
 use super::IntegrationTest;

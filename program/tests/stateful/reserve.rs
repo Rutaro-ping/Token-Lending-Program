@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use solana_program_test::BanksClientError;
 use solana_sdk::{signer::Signer, transaction::Transaction};
 use spl_token::instruction::approve;
 use spl_token_lending::instruction::builder::{
@@ -110,7 +111,12 @@ impl IntegrationTest {
         .unwrap()
     }
 
-    pub async fn redeem_reserve_liquidity(&self, amount: u64, borrower: &Borrower, currency: &str) {
+    pub async fn redeem_reserve_liquidity(
+        &self,
+        amount: u64,
+        borrower: &Borrower,
+        currency: &str,
+    ) -> Result<(), BanksClientError> {
         let reserve = self.reserves.get(currency).unwrap();
         let accounts = borrower.accounts.get(currency).unwrap();
         let mut transaction = Transaction::new_with_payer(

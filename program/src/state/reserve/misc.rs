@@ -187,10 +187,6 @@ impl ReserveFees {
             };
 
             let borrow_fee_decimal = borrow_fee_amount.max(minimum_fee.into());
-            println!(
-                "borrow_fee_decimal: {}, amount: {}",
-                borrow_fee_decimal, amount
-            );
             if borrow_fee_decimal >= amount {
                 msg!("Borrow amount is too small to receive liquidity after fees");
                 return Err(LendingError::BorrowTooSmall.into());
