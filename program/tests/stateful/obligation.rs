@@ -7,7 +7,7 @@ use spl_token_lending::instruction::builder::{
 
 use super::{Borrower, IntegrationTest};
 use crate::{
-    helpers::{TestObligation, TestReserve},
+    helpers::{TestObligation, TestReserve, FRACTIONAL_TO_USDC},
     sign_and_execute,
 };
 
@@ -88,20 +88,32 @@ impl IntegrationTest {
     }
     pub(super) async fn borrow_obligation_liquidity(
         &self,
-        reserve: &TestReserve,
+        currency: &str,
         borrower: &Borrower,
+        borrow_amount: Option<u64>,
+        slippage_limit: Option<u64>,
     ) -> Result<(), BanksClientError> {
         let obligation = borrower.obligation.as_ref().unwrap();
         let lending_market = self.lending_market.as_ref().unwrap();
-        let oracle = self.oracles.get("sol").unwrap();
+        let oracle = self.oracles.get(currency).unwrap();
+        let reserve = self.reserves.get(currency).unwrap();
+        let borrow_amount = if let Some(amount) = borrow_amount {
+            amount * FRACTIONAL_TO_USDC
+        } else {
+            u64::MAX
+        };
         let mut transaction = Transaction::new_with_payer(
             &[
                 refresh_reserve(spl_token_lending::id(), reserve.pubkey, oracle.price_pubkey),
-                refresh_obligation(spl_token_lending::id(), obligation.pubkey, vec![]),
+                refresh_obligation(
+                    spl_token_lending::id(),
+                    obligation.pubkey,
+                    vec![reserve.pubkey],
+                ),
                 borrow_obligation_liquidity(
                     spl_token_lending::id(),
-                    u64::MAX,
-                    None,
+                    borrow_amount,
+                    slippage_limit,
                     reserve.liquidity_supply_pubkey,
                     reserve.user_liquidity_pubkey,
                     reserve.pubkey,

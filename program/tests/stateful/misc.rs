@@ -9,10 +9,9 @@ impl IntegrationTest {
     }
 
     pub async fn alice_borrow_sol_without_collateral(&self) {
-        let reserve = self.reserves.get("sol").unwrap();
         let alice_borrower = self.borrowers.get("alice").unwrap();
         let result = self
-            .borrow_obligation_liquidity(reserve, alice_borrower)
+            .borrow_obligation_liquidity("sol", alice_borrower, None, None)
             .await;
         assert_eq!(
             result.unwrap_err().unwrap(),
@@ -33,6 +32,13 @@ impl IntegrationTest {
         let alice_borrower = self.borrowers.get("alice").unwrap();
         self.deposit_obligations(alice_borrower, "usdc", amount)
             .await;
+    }
+    pub async fn alice_borrow_sol_with_collateral(&mut self) {
+        let alice_borrower = self.borrowers.get("alice").unwrap();
+        let result = self
+            .borrow_obligation_liquidity("sol", alice_borrower, Some(100), None)
+            .await;
+        assert!(result.is_ok());
     }
 }
 

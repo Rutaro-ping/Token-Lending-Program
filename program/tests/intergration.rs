@@ -33,5 +33,5 @@ async fn integration_test() {
     test.go_to_slot(3).await;
     test.alice_deposit_usdc_collateral_to_obligations(1000)
         .await;
-    // test.alice_borrow_sol_with_collateral().await;
+    test.alice_borrow_sol_with_collateral().await;
 }

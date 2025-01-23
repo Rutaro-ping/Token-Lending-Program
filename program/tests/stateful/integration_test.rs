@@ -77,6 +77,7 @@ pub(crate) struct BorrowerAccounts {
 }
 
 pub(crate) struct Borrower {
+    #[allow(dead_code)]
     pub name: &'static str,
     pub obligation: Option<TestObligation>,
     pub keypair: Keypair, /* usually used as owner for entities like the obligation, token accounts

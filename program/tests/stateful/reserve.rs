@@ -48,14 +48,10 @@ impl IntegrationTest {
     }
 
     pub async fn refresh_reserves(&self) {
-      
         let mut transaction = Transaction::new_with_payer(
             &CURRENCY_TYPE
                 .iter()
                 .map(|&currency| {
-                    msg!("refresh reserve for currency {}", currency);
-                    msg!("reserve: {:#?}", self.reserves.get(currency));
-                    msg!("===============any errors=====================");
                     refresh_reserve(
                         spl_token_lending::id(),
                         self.reserves.get(currency).unwrap().pubkey,
