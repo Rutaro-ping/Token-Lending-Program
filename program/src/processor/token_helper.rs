@@ -42,7 +42,10 @@ pub(super) fn spl_token_transfer(params: TokenTransferParams<'_, '_>) -> Program
         &[source, destination, authority, token_program],
         authority_signer_seeds,
     );
-    result.map_err(|_| LendingError::TokenTransferFailed.into())
+    result.map_err(|e| {
+        msg!("spl_token_transfer: {}", e);
+        LendingError::TokenTransferFailed.into()
+    })
 }
 
 #[inline(always)]
