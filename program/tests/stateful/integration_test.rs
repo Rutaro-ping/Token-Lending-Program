@@ -1,12 +1,12 @@
-use std::collections::HashMap;
-
-use solana_program_test::{processor, ProgramTest, ProgramTestContext};
-use solana_sdk::{native_token::LAMPORTS_PER_SOL, pubkey::Pubkey, signature::Keypair};
-use spl_token_lending::processor::process_instruction;
-
-use crate::helpers::{
-    add_sol_oracle, add_usdc_mint, add_usdc_oracle, TestLendingMarket, TestMint, TestObligation,
-    TestOracle, TestReserve, FRACTIONAL_TO_USDC,
+use {
+    crate::helpers::{
+        add_sol_oracle, add_usdc_mint, add_usdc_oracle, TestLendingMarket, TestMint,
+        TestObligation, TestOracle, TestReserve,
+    },
+    solana_program_test::{processor, ProgramTest, ProgramTestContext},
+    solana_sdk::{pubkey::Pubkey, signature::Keypair},
+    spl_token_lending::processor::process_instruction,
+    std::collections::HashMap,
 };
 
 pub(crate) const BORROWER_NAME_LIST: [&str; 2] = ["alice", "bob"];
@@ -85,8 +85,8 @@ pub(crate) struct Borrower {
     #[allow(dead_code)]
     pub name: &'static str,
     pub obligation: Option<TestObligation>,
-    pub keypair: Keypair, /* usually used as owner for entities like the obligation, token accounts
-                           * of this u, etc. */
+    pub keypair: Keypair, /* usually used as owner for entities like the obligation, token
+                           * accounts of this u, etc. */
     pub user_transfer_authority: Keypair, //showcase to delegate the authority of the owner
     pub accounts: HashMap<&'static str, BorrowerAccounts>,
 }

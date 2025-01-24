@@ -1,21 +1,23 @@
-use std::collections::HashMap;
-
-use super::*;
-use crate::{
-    helpers::{
-        create_and_mint_to_token_account, create_token_account, get_state, get_token_balance,
-        TestMint, FRACTIONAL_TO_USDC, LAMPORTS_TO_SOL,
+use {
+    super::*,
+    crate::{
+        helpers::{
+            create_and_mint_to_token_account, create_token_account, get_state, get_token_balance,
+            TestMint, FRACTIONAL_TO_USDC, LAMPORTS_TO_SOL,
+        },
+        sign_and_execute,
     },
-    sign_and_execute,
-};
-use solana_program_test::BanksClient;
-use solana_sdk::{
-    native_token::LAMPORTS_PER_SOL, program_option::COption, program_pack::Pack, pubkey::Pubkey,
-    signature::Keypair, signer::Signer, system_instruction, transaction::Transaction,
-};
-use spl_token::{
-    instruction::{mint_to, sync_native},
-    state::Account as TokenAccount,
+    solana_program_test::BanksClient,
+    solana_sdk::{
+        native_token::LAMPORTS_PER_SOL, program_option::COption, program_pack::Pack,
+        pubkey::Pubkey, signature::Keypair, signer::Signer, system_instruction,
+        transaction::Transaction,
+    },
+    spl_token::{
+        instruction::{mint_to, sync_native},
+        state::Account as TokenAccount,
+    },
+    std::collections::HashMap,
 };
 
 impl IntegrationTest {

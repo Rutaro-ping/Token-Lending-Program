@@ -1,15 +1,17 @@
-use solana_program_test::BanksClientError;
-use solana_sdk::{msg, pubkey::Pubkey, signer::Signer, transaction::Transaction};
-use spl_token::{instruction::approve, state::Account};
-use spl_token_lending::instruction::builder::{
-    borrow_obligation_liquidity, deposit_obligation_collateral, liquidate_obligation,
-    refresh_obligation, refresh_reserve, withdraw_obligation_collateral,
-};
-
-use super::{Borrower, IntegrationTest};
-use crate::{
-    helpers::{get_state, TestObligation, FRACTIONAL_TO_USDC, LAMPORTS_TO_SOL},
-    sign_and_execute,
+use {
+    super::{Borrower, IntegrationTest},
+    crate::{
+        helpers::{TestObligation, FRACTIONAL_TO_USDC, LAMPORTS_TO_SOL},
+        sign_and_execute,
+    },
+    solana_program_test::BanksClientError,
+    solana_sdk::{msg, pubkey::Pubkey, signer::Signer, transaction::Transaction},
+    spl_token::instruction::approve,
+    spl_token_lending::instruction::builder::{
+        borrow_obligation_liquidity, deposit_obligation_collateral, liquidate_obligation,
+        refresh_obligation, refresh_reserve, repay_obligation_liquidity,
+        withdraw_obligation_collateral,
+    },
 };
 
 impl IntegrationTest {
@@ -90,8 +92,9 @@ impl IntegrationTest {
     /**
      * @param currency: "sol" or "usdc"
      * @param borrower: the borrower
-     * @param borrow_amount: the amount of liquidity to borrow, default is u64::MAX
-     * @param slippage_limit: the slippage limit, default is None
+     * @param borrow_amount: the amount of liquidity to borrow, default is
+     * u64::MAX @param slippage_limit: the slippage limit, default is
+     * None
      */
     pub(super) async fn borrow_obligation_liquidity(
         &self,
@@ -172,6 +175,57 @@ impl IntegrationTest {
             Some(&self.test_context.payer.pubkey()),
         );
         sign_and_execute!(self, transaction, &borrower.keypair)
+    }
+
+    pub async fn repay_obligation_liquidity(
+        &self,
+        borrower: &str,
+        currency: &str,
+        amount: u64,
+    ) -> Result<(), BanksClientError> {
+        let borrower = self.borrowers.get(borrower).unwrap();
+        let obligation = borrower.obligation.as_ref().unwrap();
+        let reserve = self.reserves.get(currency).unwrap();
+        let accounts = borrower.accounts.get(currency).unwrap();
+        let contained_reserves = self.get_obligation_deposit_reserves(obligation).await;
+        let obligation_state = obligation.get_state(&self.test_context.banks_client).await;
+        msg!("obligation_state: {:#?}", obligation_state);
+
+        let mut transaction = Transaction::new_with_payer(
+            &[
+                approve(
+                    &spl_token::id(),
+                    &accounts.token_account,
+                    &borrower.user_transfer_authority.pubkey(),
+                    &borrower.keypair.pubkey(),
+                    &[],
+                    amount,
+                )
+                .unwrap(),
+                refresh_obligation(
+                    spl_token_lending::id(),
+                    obligation.pubkey,
+                    contained_reserves,
+                ),
+                repay_obligation_liquidity(
+                    spl_token_lending::id(),
+                    amount,
+                    accounts.token_account,
+                    reserve.liquidity_supply_pubkey,
+                    reserve.pubkey,
+                    obligation.pubkey,
+                    self.lending_market.as_ref().unwrap().pubkey,
+                    borrower.user_transfer_authority.pubkey(),
+                ),
+            ],
+            Some(&self.test_context.payer.pubkey()),
+        );
+        sign_and_execute!(
+            self,
+            transaction,
+            &borrower.keypair,
+            &borrower.user_transfer_authority
+        )
     }
 
     async fn liquidate_obligation_liquidity(

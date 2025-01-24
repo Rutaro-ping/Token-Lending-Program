@@ -1,13 +1,16 @@
-use super::IntegrationTest;
-use crate::{
-    helpers::{MarketInitParams, TestLendingMarket},
-    sign_and_execute,
+use {
+    super::IntegrationTest,
+    crate::{
+        helpers::{MarketInitParams, TestLendingMarket},
+        sign_and_execute,
+    },
+    solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction},
+    spl_token_lending::instruction::builder::set_lending_market_owner,
 };
-use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
-use spl_token_lending::instruction::builder::set_lending_market_owner;
 
 impl IntegrationTest {
-    //if market_owner is not provided, it will use the default market owner loaded from the fixture file.
+    //if market_owner is not provided, it will use the default market owner loaded
+    // from the fixture file.
     pub async fn create_market(&mut self, market_owner: Option<Keypair>) {
         let temp_lending_market_keypair = Keypair::new();
         let test_lending_market = TestLendingMarket::init(

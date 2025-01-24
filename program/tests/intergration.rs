@@ -1,11 +1,12 @@
 #![cfg(feature = "test-sbf")]
 mod helpers;
 mod stateful;
-use helpers::{get_token_balance, TestObligation, FRACTIONAL_TO_USDC};
-use solana_sdk::{msg, signature::read_keypair_file};
-use stateful::*;
-
-use {solana_program_test::*, solana_sdk::signature::Keypair};
+use {
+    helpers::FRACTIONAL_TO_USDC,
+    solana_program_test::*,
+    solana_sdk::signature::{read_keypair_file, Keypair},
+    stateful::*,
+};
 
 #[tokio::test]
 async fn alice_can_brorow_sol_and_repay() {
@@ -47,4 +48,7 @@ async fn alice_can_brorow_sol_and_repay() {
     test.alice_borrow_sol_with_usdc_collateral().await;
     test.go_to_slot(100).await;
     test.refresh_reserves().await;
+    test.alice_repay_sol_to_obligation().await;
+    let result = test.redeem_reserve_liquidity("alice", "usdc", 4).await;
+    assert!(result.is_ok());
 }

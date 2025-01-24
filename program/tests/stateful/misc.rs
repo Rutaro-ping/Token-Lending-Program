@@ -1,7 +1,8 @@
-use solana_sdk::{instruction::InstructionError, transaction::TransactionError};
-use spl_token_lending::error::LendingError;
-
-use super::IntegrationTest;
+use {
+    super::IntegrationTest,
+    solana_sdk::{instruction::InstructionError, transaction::TransactionError},
+    spl_token_lending::error::LendingError,
+};
 
 impl IntegrationTest {
     pub async fn go_to_slot(&mut self, slot: u64) {
@@ -27,6 +28,11 @@ impl IntegrationTest {
         let result = self
             .borrow_obligation_liquidity("sol", alice_borrower, None, None)
             .await;
+        assert!(result.is_ok());
+    }
+    pub async fn alice_repay_sol_to_obligation(&mut self) {
+        let result = self.repay_obligation_liquidity("alice", "sol", 1).await;
+
         assert!(result.is_ok());
     }
 }

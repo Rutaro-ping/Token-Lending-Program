@@ -1,17 +1,19 @@
-use std::collections::HashMap;
-
-use solana_program_test::BanksClientError;
-use solana_sdk::{native_token::LAMPORTS_PER_SOL, signer::Signer, transaction::Transaction};
-use spl_token::instruction::approve;
-use spl_token_lending::{
-    instruction::builder::{deposit_reserve_liquidity, redeem_reserve_collateral, refresh_reserve},
-    state::ReserveConfig,
-};
-
-use super::{Borrower, IntegrationTest, MIN_OPEN_ACCOUNT_AMOUNT};
-use crate::{
-    helpers::{get_token_balance, TestReserve, FRACTIONAL_TO_USDC, TEST_RESERVE_CONFIG},
-    sign_and_execute, CURRENCY_TYPE,
+use {
+    super::{IntegrationTest, MIN_OPEN_ACCOUNT_AMOUNT},
+    crate::{
+        helpers::{get_token_balance, TestReserve, FRACTIONAL_TO_USDC, TEST_RESERVE_CONFIG},
+        sign_and_execute, CURRENCY_TYPE,
+    },
+    solana_program_test::BanksClientError,
+    solana_sdk::{native_token::LAMPORTS_PER_SOL, signer::Signer, transaction::Transaction},
+    spl_token::instruction::approve,
+    spl_token_lending::{
+        instruction::builder::{
+            deposit_reserve_liquidity, redeem_reserve_collateral, refresh_reserve,
+        },
+        state::ReserveConfig,
+    },
+    std::collections::HashMap,
 };
 
 #[derive(Default, Debug)]
@@ -150,11 +152,12 @@ impl IntegrationTest {
 
     pub async fn redeem_reserve_liquidity(
         &self,
-        amount: u64,
-        borrower: &Borrower,
+        borrower: &str,
         currency: &str,
+        amount: u64,
     ) -> Result<(), BanksClientError> {
         let reserve = self.reserves.get(currency).unwrap();
+        let borrower = self.borrowers.get(borrower).unwrap();
         let accounts = borrower.accounts.get(currency).unwrap();
         let mut transaction = Transaction::new_with_payer(
             &[
