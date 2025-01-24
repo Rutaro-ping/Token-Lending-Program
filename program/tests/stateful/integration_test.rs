@@ -65,9 +65,20 @@ impl IntegrationTest {
         }
     }
 }
-pub(crate) struct BorrowerAccounts {
+#[derive(Debug, Clone, Copy)]
+pub struct BorrowerAccounts {
     pub token_account: Pubkey,
     pub collateral_account: Pubkey,
+}
+
+impl BorrowerAccounts {
+    pub fn get_account(&self, is_collateral_account: bool) -> Pubkey {
+        if is_collateral_account {
+            self.collateral_account
+        } else {
+            self.token_account
+        }
+    }
 }
 
 pub(crate) struct Borrower {

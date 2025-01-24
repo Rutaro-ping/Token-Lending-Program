@@ -10,7 +10,7 @@ use spl_token_lending::{
 
 use super::{Borrower, IntegrationTest, MIN_OPEN_ACCOUNT_AMOUNT};
 use crate::{
-    helpers::{TestReserve, FRACTIONAL_TO_USDC, TEST_RESERVE_CONFIG},
+    helpers::{get_token_balance, TestReserve, FRACTIONAL_TO_USDC, TEST_RESERVE_CONFIG},
     sign_and_execute, CURRENCY_TYPE,
 };
 
@@ -93,15 +93,24 @@ impl IntegrationTest {
         assert!(sign_and_execute!(self, transaction).is_ok());
     }
 
-    pub(super) async fn deposit_reserve_liquidity(
+    pub(crate) async fn deposit_reserve_liquidity(
         &self,
-        borrower: &Borrower,
-        liquidity_amount: u64,
+        borrower: &str,
         currency: &str, //"sol" or "usdc"
-    ) {
+        liquidity_amount: u64,
+    ) -> u64 {
         let payer = &self.test_context.payer;
+        let borrower = self.borrowers.get(borrower).unwrap();
         let accounts = borrower.accounts.get(currency).unwrap();
         let reserve = self.reserves.get(currency).unwrap();
+        let decimals = match currency {
+            "sol" => LAMPORTS_PER_SOL,
+            "usdc" => FRACTIONAL_TO_USDC,
+            _ => 0,
+        };
+        let liquidity_amount = liquidity_amount * decimals;
+        let before_balance =
+            get_token_balance(&self.test_context.banks_client, accounts.collateral_account).await;
         let mut transaction = Transaction::new_with_payer(
             &[
                 approve(
@@ -127,13 +136,16 @@ impl IntegrationTest {
             ],
             Some(&payer.pubkey()),
         );
-        sign_and_execute!(
+        let result = sign_and_execute!(
             self,
             transaction,
             &borrower.keypair,
             &borrower.user_transfer_authority
-        )
-        .unwrap()
+        );
+        assert!(result.is_ok());
+        let after_balance =
+            get_token_balance(&self.test_context.banks_client, accounts.collateral_account).await;
+        after_balance - before_balance
     }
 
     pub async fn redeem_reserve_liquidity(

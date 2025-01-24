@@ -163,7 +163,7 @@ impl IntegrationTest {
         )
     }
     //how many full tokens to top up, default is 100 tokens
-    pub async fn top_up_token_accounts(&mut self, top_up_amount: Option<u64>) {
+    pub async fn top_up_token_accounts(&self, top_up_amount: Option<u64>) {
         const TOP_UP_AMOUNT: u64 = 100;
         let top_up_amount = top_up_amount.unwrap_or(TOP_UP_AMOUNT);
         for name in BORROWER_NAME_LIST {
@@ -212,6 +212,49 @@ impl IntegrationTest {
         );
         let result = sign_and_execute!(self, transaction, &self.test_context.payer);
         assert!(result.is_ok());
+    }
+    pub async fn transfer(
+        &self,
+        amount: u64,
+        from_account: Pubkey,
+        to_account: Pubkey,
+        authority: &Keypair,
+    ) {
+        let mut transaction = Transaction::new_with_payer(
+            &[spl_token::instruction::transfer(
+                &spl_token::id(),
+                &from_account,
+                &to_account,
+                &authority.pubkey(),
+                &[],
+                amount,
+            )
+            .unwrap()],
+            Some(&self.test_context.payer.pubkey()),
+        );
+        let result = sign_and_execute!(self, transaction, authority);
+        println!("result: {:#?}", result);
+        assert!(result.is_ok());
+    }
+    pub(crate) async fn transfer_bewteen_borrowers(
+        &self,
+        amount: u64,
+        from_borrower: &str,
+        to_borrower: &str,
+        currency: &str,
+        is_collateral_account: bool,
+    ) {
+        let from_borrower = self.borrowers.get(from_borrower).unwrap();
+        let to_borrower = self.borrowers.get(to_borrower).unwrap();
+        let from_accounts = from_borrower.accounts.get(currency).unwrap();
+        let to_accounts = to_borrower.accounts.get(currency).unwrap();
+        self.transfer(
+            amount,
+            from_accounts.get_account(is_collateral_account),
+            to_accounts.get_account(is_collateral_account),
+            &from_borrower.keypair,
+        )
+        .await;
     }
 
     //provide airdrop for USDC
