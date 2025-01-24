@@ -1,6 +1,6 @@
 use solana_program_test::BanksClientError;
-use solana_sdk::{pubkey::Pubkey, signer::Signer, transaction::Transaction};
-use spl_token::instruction::approve;
+use solana_sdk::{msg, pubkey::Pubkey, signer::Signer, transaction::Transaction};
+use spl_token::{instruction::approve, state::Account};
 use spl_token_lending::instruction::builder::{
     borrow_obligation_liquidity, deposit_obligation_collateral, liquidate_obligation,
     refresh_obligation, refresh_reserve, withdraw_obligation_collateral,
@@ -8,7 +8,7 @@ use spl_token_lending::instruction::builder::{
 
 use super::{Borrower, IntegrationTest};
 use crate::{
-    helpers::{TestObligation, FRACTIONAL_TO_USDC},
+    helpers::{get_state, TestObligation, FRACTIONAL_TO_USDC, LAMPORTS_TO_SOL},
     sign_and_execute,
 };
 
@@ -43,12 +43,13 @@ impl IntegrationTest {
         borrower_alice.obligation = Some(alice_obligation);
     }
 
-    pub async fn deposit_obligations(
+    pub async fn deposit_collateral_to_obligations(
         &self,
-        borrower: &Borrower,
+        borrower: &str,
         currency: &str, //"sol" or "usdc"
         collateral_amount: u64,
     ) -> Result<(), BanksClientError> {
+        let borrower = self.borrowers.get(borrower).unwrap();
         let obligation = borrower.obligation.as_ref().unwrap();
         let lending_market = self.lending_market.as_ref().unwrap();
         let accounts = borrower.accounts.get(currency).unwrap();
@@ -104,10 +105,17 @@ impl IntegrationTest {
         let oracle = self.oracles.get(currency).unwrap();
         let reserve = self.reserves.get(currency).unwrap();
         let borrow_amount = if let Some(amount) = borrow_amount {
-            amount * FRACTIONAL_TO_USDC
+            amount
+                * match currency {
+                    "sol" => LAMPORTS_TO_SOL,
+                    "usdc" => FRACTIONAL_TO_USDC,
+                    _ => unreachable!(),
+                }
         } else {
             u64::MAX
         };
+
+        let borrower_accounts = borrower.accounts.get(currency).unwrap();
 
         let reserve_pubkeys = self.get_obligation_deposit_reserves(obligation).await;
         let mut transaction = Transaction::new_with_payer(
@@ -119,13 +127,13 @@ impl IntegrationTest {
                     borrow_amount,
                     slippage_limit,
                     reserve.liquidity_supply_pubkey,
-                    reserve.user_liquidity_pubkey,
+                    borrower_accounts.token_account,
                     reserve.pubkey,
                     reserve.liquidity_fee_receiver_pubkey,
                     obligation.pubkey,
                     lending_market.pubkey,
                     borrower.keypair.pubkey(),
-                    Some(reserve.liquidity_host_pubkey),
+                    None,
                 ),
             ],
             Some(&self.test_context.payer.pubkey()),

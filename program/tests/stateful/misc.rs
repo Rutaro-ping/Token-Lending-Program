@@ -22,27 +22,12 @@ impl IntegrationTest {
         );
     }
 
-    pub async fn alice_deposit_usdc_collateral_to_obligations(&mut self, amount: u64) {
-        self.refresh_reserves().await;
+    pub async fn alice_borrow_sol_with_usdc_collateral(&mut self) {
         let alice_borrower = self.borrowers.get("alice").unwrap();
         let result = self
-            .deposit_obligations(alice_borrower, "usdc", amount)
+            .borrow_obligation_liquidity("sol", alice_borrower, None, None)
             .await;
         assert!(result.is_ok());
-    }
-    pub async fn alice_borrow_sol_with_collateral(&mut self) {
-        let alice_borrower = self.borrowers.get("alice").unwrap();
-        let result = self
-            .borrow_obligation_liquidity("sol", alice_borrower, Some(100), None)
-            .await;
-
-        assert_eq!(
-            result.unwrap_err().unwrap(),
-            TransactionError::InstructionError(
-                2,
-                InstructionError::Custom(LendingError::BorrowTooLarge as u32)
-            )
-        );
     }
 }
 
