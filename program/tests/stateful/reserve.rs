@@ -1,31 +1,45 @@
 use std::collections::HashMap;
 
 use solana_program_test::BanksClientError;
-use solana_sdk::{signer::Signer, transaction::Transaction};
+use solana_sdk::{native_token::LAMPORTS_PER_SOL, signer::Signer, transaction::Transaction};
 use spl_token::instruction::approve;
-use spl_token_lending::instruction::builder::{
-    deposit_reserve_liquidity, redeem_reserve_collateral, refresh_reserve,
+use spl_token_lending::{
+    instruction::builder::{deposit_reserve_liquidity, redeem_reserve_collateral, refresh_reserve},
+    state::ReserveConfig,
 };
 
-use super::{Borrower, IntegrationTest, INIT_RESERVE_SOL_AMOUNT, INIT_RESERVE_USDC_AMOUNT};
+use super::{Borrower, IntegrationTest, MIN_OPEN_ACCOUNT_AMOUNT};
 use crate::{
-    helpers::{TestReserve, TEST_RESERVE_CONFIG},
+    helpers::{TestReserve, FRACTIONAL_TO_USDC, TEST_RESERVE_CONFIG},
     sign_and_execute, CURRENCY_TYPE,
 };
 
 impl IntegrationTest {
-    pub async fn create_reserves(&mut self) {
+    //it refreshes reserves after creating them
+    pub async fn create_reserves(
+        &mut self,
+        init_sol_amount: Option<u64>,
+        init_usdc_amount: Option<u64>,
+        usdc_reserve_config: Option<ReserveConfig>,
+        sol_reserve_config: Option<ReserveConfig>,
+    ) {
+        let init_sol_amount =
+            init_sol_amount.map_or(MIN_OPEN_ACCOUNT_AMOUNT, |amount| amount * LAMPORTS_PER_SOL);
+        let init_usdc_amount = init_usdc_amount.map_or(MIN_OPEN_ACCOUNT_AMOUNT, |amount| {
+            amount * FRACTIONAL_TO_USDC
+        });
         let lending_market = self.lending_market.as_ref().unwrap();
-        let (init_sol_user_liquidity_account, init_usdc_user_liquidity_account) =
-            self.create_init_user_supply_accounts().await;
+        let (init_sol_user_liquidity_account, init_usdc_user_liquidity_account) = self
+            .create_init_user_supply_accounts(init_sol_amount, init_usdc_amount)
+            .await;
 
         let sol_reserve = TestReserve::init(
             "sol".to_owned(),
             &self.test_context.banks_client,
             lending_market,
             self.oracles.get("sol").unwrap(),
-            INIT_RESERVE_SOL_AMOUNT,
-            TEST_RESERVE_CONFIG,
+            init_sol_amount,
+            sol_reserve_config.unwrap_or(TEST_RESERVE_CONFIG),
             spl_token::native_mint::id(),
             init_sol_user_liquidity_account,
             &self.test_context.payer,
@@ -39,8 +53,8 @@ impl IntegrationTest {
             &self.test_context.banks_client,
             lending_market,
             self.oracles.get("usdc").unwrap(),
-            INIT_RESERVE_USDC_AMOUNT,
-            TEST_RESERVE_CONFIG,
+            init_usdc_amount,
+            usdc_reserve_config.unwrap_or(TEST_RESERVE_CONFIG),
             self.usdc_mint.pubkey,
             init_usdc_user_liquidity_account,
             &self.test_context.payer,
@@ -50,6 +64,7 @@ impl IntegrationTest {
         .unwrap();
 
         self.reserves = HashMap::from([("sol", sol_reserve), ("usdc", usdc_reserve)]);
+        self.refresh_reserves().await;
     }
 
     pub async fn refresh_reserves(&self) {

@@ -21,11 +21,7 @@ impl IntegrationTest {
             )
         );
     }
-    pub async fn alice_deposit_usdc_reserve(&self, amount: u64) {
-        let alice_borrower = self.borrowers.get("alice").unwrap();
-        self.deposit_reserve_liquidity(alice_borrower, amount, "usdc")
-            .await;
-    }
+
 
     pub async fn alice_deposit_usdc_collateral_to_obligations(&mut self, amount: u64) {
         self.refresh_reserves().await;

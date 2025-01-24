@@ -9,8 +9,6 @@ use crate::helpers::{
     TestOracle, TestReserve, FRACTIONAL_TO_USDC,
 };
 
-pub(crate) const INIT_RESERVE_SOL_AMOUNT: u64 = 10 * LAMPORTS_PER_SOL;
-pub(crate) const INIT_RESERVE_USDC_AMOUNT: u64 = 10 * FRACTIONAL_TO_USDC;
 pub(crate) const BORROWER_NAME_LIST: [&str; 2] = ["alice", "bob"];
 pub(crate) const CURRENCY_TYPE: [&str; 2] = ["usdc", "sol"];
 
@@ -62,8 +60,6 @@ impl IntegrationTest {
             usdc_mint,
             lending_market: None,
             user_accounts_owner: Keypair::new(),
-            init_sol_user_liquidity_account: Pubkey::default(),
-            init_usdc_user_liquidity_account: Pubkey::default(),
             reserves: HashMap::default(),
             borrowers,
         }

@@ -109,14 +109,18 @@ impl IntegrationTest {
         }
     }
 
-    pub async fn create_init_user_supply_accounts(&self) -> (Pubkey, Pubkey) {
+    pub async fn create_init_user_supply_accounts(
+        &self,
+        init_sol_amount: u64,
+        init_usdc_amount: u64,
+    ) -> (Pubkey, Pubkey) {
         let init_sol_user_liquidity_account = create_and_mint_to_token_account(
             &self.test_context.banks_client,
             spl_token::native_mint::id(),
             None,
             &self.test_context.payer,
             self.user_accounts_owner.pubkey(),
-            INIT_RESERVE_SOL_AMOUNT,
+            init_sol_amount,
         )
         .await;
 
@@ -126,7 +130,7 @@ impl IntegrationTest {
             Some(&self.usdc_mint.authority),
             &self.test_context.payer,
             self.user_accounts_owner.pubkey(),
-            INIT_RESERVE_USDC_AMOUNT,
+            init_usdc_amount,
         )
         .await;
 
@@ -141,9 +145,9 @@ impl IntegrationTest {
             .get_balance(init_sol_user_liquidity_account)
             .await
             .unwrap();
-        assert_eq!(sol_balance, INIT_RESERVE_SOL_AMOUNT);
+        assert_eq!(sol_balance, init_sol_amount);
         let rent = self.test_context.banks_client.get_rent().await.unwrap();
-        let lamports = rent.minimum_balance(TokenAccount::LEN) + INIT_RESERVE_SOL_AMOUNT;
+        let lamports = rent.minimum_balance(TokenAccount::LEN) + init_sol_amount;
         //native SOL token account total lamports = rent + init_sol_amount
         assert_eq!(sol_balance_lamports, lamports);
 
@@ -152,7 +156,7 @@ impl IntegrationTest {
             init_usdc_user_liquidity_account,
         )
         .await;
-        assert_eq!(usdc_balance, INIT_RESERVE_USDC_AMOUNT);
+        assert_eq!(usdc_balance, init_usdc_amount);
         (
             init_sol_user_liquidity_account,
             init_usdc_user_liquidity_account,

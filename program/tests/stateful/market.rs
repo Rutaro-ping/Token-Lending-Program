@@ -7,14 +7,14 @@ use solana_sdk::{signature::Keypair, signer::Signer, transaction::Transaction};
 use spl_token_lending::instruction::builder::set_lending_market_owner;
 
 impl IntegrationTest {
-    pub async fn create_market(&mut self) {
-        let temp_lending_market_owner = Keypair::new();
+    //if market_owner is not provided, it will use the default market owner loaded from the fixture file.
+    pub async fn create_market(&mut self, market_owner: Option<Keypair>) {
         let temp_lending_market_keypair = Keypair::new();
         let test_lending_market = TestLendingMarket::init(
             &self.test_context.banks_client,
             &self.test_context.payer,
             Some(MarketInitParams {
-                lending_market_owner: Some(temp_lending_market_owner),
+                lending_market_owner: market_owner,
                 lending_market_keypair: Some(temp_lending_market_keypair),
                 ..Default::default()
             }),
