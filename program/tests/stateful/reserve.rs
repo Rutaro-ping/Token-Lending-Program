@@ -14,15 +14,23 @@ use crate::{
     sign_and_execute, CURRENCY_TYPE,
 };
 
+#[derive(Default, Debug)]
+pub(crate) struct CreateReserveParams {
+    pub init_sol_amount: Option<u64>,
+    pub init_usdc_amount: Option<u64>,
+    pub usdc_reserve_config: Option<ReserveConfig>,
+    pub sol_reserve_config: Option<ReserveConfig>,
+}
+
 impl IntegrationTest {
     //it refreshes reserves after creating them
-    pub async fn create_reserves(
-        &mut self,
-        init_sol_amount: Option<u64>,
-        init_usdc_amount: Option<u64>,
-        usdc_reserve_config: Option<ReserveConfig>,
-        sol_reserve_config: Option<ReserveConfig>,
-    ) {
+    pub async fn create_reserves(&mut self, params: Option<CreateReserveParams>) {
+        let CreateReserveParams {
+            init_sol_amount,
+            init_usdc_amount,
+            usdc_reserve_config,
+            sol_reserve_config,
+        } = params.unwrap_or_default();
         let init_sol_amount =
             init_sol_amount.map_or(MIN_OPEN_ACCOUNT_AMOUNT, |amount| amount * LAMPORTS_PER_SOL);
         let init_usdc_amount = init_usdc_amount.map_or(MIN_OPEN_ACCOUNT_AMOUNT, |amount| {

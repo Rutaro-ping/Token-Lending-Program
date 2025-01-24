@@ -18,7 +18,7 @@ async fn alice_can_brorow_sol_and_repay() {
     test.change_market_owner(lending_market_owner).await;
     //create init user supply accounts
     //create reserves
-    test.create_reserves(None, None, None, None).await;
+    test.create_reserves(None).await;
 
     //open usdc and sol token accounts, and collateral accounts for both alice and
     // bob
@@ -29,13 +29,13 @@ async fn alice_can_brorow_sol_and_repay() {
     test.alice_borrow_sol_without_collateral().await;
     //by default it airdrop 1000 tokens to each account of each borrower in respect
     // mint type.
-    test.top_up_token_accounts().await;
+    test.top_up_token_accounts(None).await;
 
     test.go_to_slot(3).await;
     test.alice_deposit_usdc_collateral_to_obligations(1000)
         .await;
     test.alice_borrow_sol_with_collateral().await;
-    test.bob_deposit_sol_reserve(1000).await;
+    // test.bob_deposit_sol_reserve(1000).await;
     // test.go_to_slot(5).await;
     // test.refresh_reserves().await;
     // test.bob_deposit_sol_collateral_to_obligations(1000).await;

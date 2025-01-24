@@ -162,18 +162,20 @@ impl IntegrationTest {
             init_usdc_user_liquidity_account,
         )
     }
-    pub async fn top_up_token_accounts(&mut self) {
-        const TOP_UP_AMOUNT: u64 = 1000;
+    //how many full tokens to top up, default is 100 tokens
+    pub async fn top_up_token_accounts(&mut self, top_up_amount: Option<u64>) {
+        const TOP_UP_AMOUNT: u64 = 100;
+        let top_up_amount = top_up_amount.unwrap_or(TOP_UP_AMOUNT);
         for name in BORROWER_NAME_LIST {
             let borrower = self.borrowers.get(name).unwrap();
             self.airdrop_native_sol(
-                TOP_UP_AMOUNT,
+                top_up_amount,
                 borrower.accounts.get("sol").unwrap().token_account,
             )
             .await;
 
             self.airdrop_usdc(
-                TOP_UP_AMOUNT,
+                top_up_amount,
                 borrower.accounts.get("usdc").unwrap().token_account,
             )
             .await;
@@ -184,7 +186,7 @@ impl IntegrationTest {
             )
             .await
             .unwrap();
-            assert!(sol_account.amount >= TOP_UP_AMOUNT * LAMPORTS_PER_SOL);
+            assert!(sol_account.amount >= top_up_amount * LAMPORTS_PER_SOL);
 
             let usdc_account = get_state::<TokenAccount>(
                 borrower.accounts.get("usdc").unwrap().token_account,
@@ -192,7 +194,7 @@ impl IntegrationTest {
             )
             .await
             .unwrap();
-            assert!(usdc_account.amount >= TOP_UP_AMOUNT * FRACTIONAL_TO_USDC);
+            assert!(usdc_account.amount >= top_up_amount * FRACTIONAL_TO_USDC);
         }
     }
     async fn airdrop_native_sol(&self, amount: u64, to_account: Pubkey) {

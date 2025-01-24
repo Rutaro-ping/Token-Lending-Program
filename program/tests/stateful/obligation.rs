@@ -46,10 +46,9 @@ impl IntegrationTest {
     pub async fn deposit_obligations(
         &self,
         borrower: &Borrower,
-
         currency: &str, //"sol" or "usdc"
         collateral_amount: u64,
-    ) {
+    ) -> Result<(), BanksClientError> {
         let obligation = borrower.obligation.as_ref().unwrap();
         let lending_market = self.lending_market.as_ref().unwrap();
         let accounts = borrower.accounts.get(currency).unwrap();
@@ -79,14 +78,20 @@ impl IntegrationTest {
             ],
             Some(&self.test_context.payer.pubkey()),
         );
-        let result = sign_and_execute!(
+        sign_and_execute!(
             self,
             transaction,
             &borrower.keypair,
             &borrower.user_transfer_authority
-        );
-        assert!(result.is_ok());
+        )
     }
+
+    /**
+     * @param currency: "sol" or "usdc"
+     * @param borrower: the borrower
+     * @param borrow_amount: the amount of liquidity to borrow, default is u64::MAX
+     * @param slippage_limit: the slippage limit, default is None
+     */
     pub(super) async fn borrow_obligation_liquidity(
         &self,
         currency: &str,
