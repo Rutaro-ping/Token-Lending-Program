@@ -17,7 +17,7 @@ impl IntegrationTest {
         assert_eq!(
             result.unwrap_err().unwrap(),
             TransactionError::InstructionError(
-                2,
+                1,
                 InstructionError::Custom(LendingError::ObligationDepositsEmpty as u32)
             )
         );

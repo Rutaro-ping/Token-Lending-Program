@@ -5,7 +5,7 @@ use {
         sign_and_execute, CURRENCY_TYPE,
     },
     solana_program_test::BanksClientError,
-    solana_sdk::{native_token::LAMPORTS_PER_SOL, signer::Signer, transaction::Transaction},
+    solana_sdk::{msg, native_token::LAMPORTS_PER_SOL, signer::Signer, transaction::Transaction},
     spl_token::instruction::approve,
     spl_token_lending::{
         instruction::builder::{
@@ -108,7 +108,7 @@ impl IntegrationTest {
         let decimals = match currency {
             "sol" => LAMPORTS_PER_SOL,
             "usdc" => FRACTIONAL_TO_USDC,
-            _ => 0,
+            _ => unreachable!(),
         };
         let liquidity_amount = liquidity_amount * decimals;
         let before_balance =

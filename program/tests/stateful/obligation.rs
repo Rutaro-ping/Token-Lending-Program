@@ -120,11 +120,9 @@ impl IntegrationTest {
 
         let borrower_accounts = borrower.accounts.get(currency).unwrap();
 
-        let reserve_pubkeys = self.get_refered_reserves_for_obligation(obligation).await;
         let mut transaction = Transaction::new_with_payer(
             &[
                 refresh_reserve(spl_token_lending::id(), reserve.pubkey, oracle.price_pubkey),
-                refresh_obligation(spl_token_lending::id(), obligation.pubkey, reserve_pubkeys),
                 borrow_obligation_liquidity(
                     spl_token_lending::id(),
                     borrow_amount,
@@ -157,21 +155,18 @@ impl IntegrationTest {
         let obligation = borrower.obligation.as_ref().unwrap();
         let reserve = self.reserves.get(currency).unwrap();
         let accounts = borrower.accounts.get(currency).unwrap();
-        let reserve_pubkeys = self.get_refered_reserves_for_obligation(obligation).await;
+
         let mut transaction = Transaction::new_with_payer(
-            &[
-                refresh_obligation(spl_token_lending::id(), obligation.pubkey, reserve_pubkeys),
-                withdraw_obligation_collateral(
-                    spl_token_lending::id(),
-                    amount,
-                    accounts.collateral_account,
-                    accounts.token_account,
-                    reserve.pubkey,
-                    obligation.pubkey,
-                    self.lending_market.as_ref().unwrap().pubkey,
-                    obligation.owner,
-                ),
-            ],
+            &[withdraw_obligation_collateral(
+                spl_token_lending::id(),
+                amount,
+                accounts.collateral_account,
+                accounts.token_account,
+                reserve.pubkey,
+                obligation.pubkey,
+                self.lending_market.as_ref().unwrap().pubkey,
+                obligation.owner,
+            )],
             Some(&self.test_context.payer.pubkey()),
         );
         sign_and_execute!(self, transaction, &borrower.keypair)
@@ -187,9 +182,8 @@ impl IntegrationTest {
         let obligation = borrower.obligation.as_ref().unwrap();
         let reserve = self.reserves.get(currency).unwrap();
         let accounts = borrower.accounts.get(currency).unwrap();
-        let contained_reserves = self.get_refered_reserves_for_obligation(obligation).await;
         let obligation_state = obligation.get_state(&self.test_context.banks_client).await;
-        msg!("obligation_state: {:#?}", contained_reserves);
+        msg!("obligation_state: {:#?}", obligation_state);
 
         let mut transaction = Transaction::new_with_payer(
             &[
@@ -202,11 +196,6 @@ impl IntegrationTest {
                     amount,
                 )
                 .unwrap(),
-                refresh_obligation(
-                    spl_token_lending::id(),
-                    obligation.pubkey,
-                    contained_reserves,
-                ),
                 repay_obligation_liquidity(
                     spl_token_lending::id(),
                     amount,
@@ -236,7 +225,7 @@ impl IntegrationTest {
     ) -> Result<(), BanksClientError> {
         let obligation = borrower.obligation.as_ref().unwrap();
         let reserve = self.reserves.get(currency).unwrap();
-        let reserve_pubkeys = self.get_refered_reserves_for_obligation(obligation).await;
+
         let mut transaction = Transaction::new_with_payer(
             &[
                 approve(
@@ -248,7 +237,6 @@ impl IntegrationTest {
                     amount,
                 )
                 .unwrap(),
-                refresh_obligation(spl_token_lending::id(), obligation.pubkey, reserve_pubkeys),
                 liquidate_obligation(
                     spl_token_lending::id(),
                     amount,
@@ -272,10 +260,16 @@ impl IntegrationTest {
             &borrower.user_transfer_authority
         )
     }
-    async fn get_refered_reserves_for_obligation(
-        &self,
-        obligation: &TestObligation,
-    ) -> Vec<Pubkey> {
+
+    /**first read reseve pubkeys from borrows and deposits, then refresh obligation with them */
+    pub async fn refresh_obligation(&self, borrower: &str) {
+        let obligation = self
+            .borrowers
+            .get(borrower)
+            .unwrap()
+            .obligation
+            .as_ref()
+            .unwrap();
         let obligation_state = obligation.get_state(&self.test_context.banks_client).await;
         let borrow_reserves = obligation_state
             .borrows
@@ -289,7 +283,16 @@ impl IntegrationTest {
             .collect::<Vec<Pubkey>>();
         let mut reserves = deposit_reserves;
         reserves.extend(borrow_reserves);
-        reserves
+        let mut transaction = Transaction::new_with_payer(
+            &[refresh_obligation(
+                spl_token_lending::id(),
+                obligation.pubkey,
+                reserves,
+            )],
+            Some(&self.test_context.payer.pubkey()),
+        );
+        let result = sign_and_execute!(self, transaction, &self.test_context.payer);
+        assert!(result.is_ok());
     }
     //provide airdrop for native SOL
 }
