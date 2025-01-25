@@ -135,10 +135,6 @@ pub fn init_lending_market(
     lending_market_pubkey: Pubkey,
     oracle_program_id: Pubkey,
 ) -> Instruction {
-    println!(
-        "init_lending_market lending_market_pubkey: {:?}",
-        lending_market_pubkey
-    );
     Instruction {
         program_id,
         accounts: vec![

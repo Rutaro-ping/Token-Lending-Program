@@ -120,7 +120,7 @@ impl IntegrationTest {
 
         let borrower_accounts = borrower.accounts.get(currency).unwrap();
 
-        let reserve_pubkeys = self.get_obligation_deposit_reserves(obligation).await;
+        let reserve_pubkeys = self.get_refered_reserves_for_obligation(obligation).await;
         let mut transaction = Transaction::new_with_payer(
             &[
                 refresh_reserve(spl_token_lending::id(), reserve.pubkey, oracle.price_pubkey),
@@ -157,7 +157,7 @@ impl IntegrationTest {
         let obligation = borrower.obligation.as_ref().unwrap();
         let reserve = self.reserves.get(currency).unwrap();
         let accounts = borrower.accounts.get(currency).unwrap();
-        let reserve_pubkeys = self.get_obligation_deposit_reserves(obligation).await;
+        let reserve_pubkeys = self.get_refered_reserves_for_obligation(obligation).await;
         let mut transaction = Transaction::new_with_payer(
             &[
                 refresh_obligation(spl_token_lending::id(), obligation.pubkey, reserve_pubkeys),
@@ -187,9 +187,9 @@ impl IntegrationTest {
         let obligation = borrower.obligation.as_ref().unwrap();
         let reserve = self.reserves.get(currency).unwrap();
         let accounts = borrower.accounts.get(currency).unwrap();
-        let contained_reserves = self.get_obligation_deposit_reserves(obligation).await;
+        let contained_reserves = self.get_refered_reserves_for_obligation(obligation).await;
         let obligation_state = obligation.get_state(&self.test_context.banks_client).await;
-        msg!("obligation_state: {:#?}", obligation_state);
+        msg!("obligation_state: {:#?}", contained_reserves);
 
         let mut transaction = Transaction::new_with_payer(
             &[
@@ -236,7 +236,7 @@ impl IntegrationTest {
     ) -> Result<(), BanksClientError> {
         let obligation = borrower.obligation.as_ref().unwrap();
         let reserve = self.reserves.get(currency).unwrap();
-        let reserve_pubkeys = self.get_obligation_deposit_reserves(obligation).await;
+        let reserve_pubkeys = self.get_refered_reserves_for_obligation(obligation).await;
         let mut transaction = Transaction::new_with_payer(
             &[
                 approve(
@@ -272,13 +272,24 @@ impl IntegrationTest {
             &borrower.user_transfer_authority
         )
     }
-    async fn get_obligation_deposit_reserves(&self, obligation: &TestObligation) -> Vec<Pubkey> {
+    async fn get_refered_reserves_for_obligation(
+        &self,
+        obligation: &TestObligation,
+    ) -> Vec<Pubkey> {
         let obligation_state = obligation.get_state(&self.test_context.banks_client).await;
-        obligation_state
+        let borrow_reserves = obligation_state
+            .borrows
+            .iter()
+            .map(|borrow| borrow.borrow_reserve)
+            .collect::<Vec<Pubkey>>();
+        let deposit_reserves = obligation_state
             .deposits
             .iter()
             .map(|deposit| deposit.deposit_reserve)
-            .collect::<Vec<Pubkey>>()
+            .collect::<Vec<Pubkey>>();
+        let mut reserves = deposit_reserves;
+        reserves.extend(borrow_reserves);
+        reserves
     }
     //provide airdrop for native SOL
 }

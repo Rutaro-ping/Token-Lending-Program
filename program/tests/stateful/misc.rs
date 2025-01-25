@@ -1,6 +1,6 @@
 use {
     super::IntegrationTest,
-    solana_sdk::{instruction::InstructionError, transaction::TransactionError},
+    solana_sdk::{instruction::InstructionError, msg, transaction::TransactionError},
     spl_token_lending::error::LendingError,
 };
 
@@ -32,7 +32,6 @@ impl IntegrationTest {
     }
     pub async fn alice_repay_sol_to_obligation(&mut self) {
         let result = self.repay_obligation_liquidity("alice", "sol", 1).await;
-
         assert!(result.is_ok());
     }
 }
