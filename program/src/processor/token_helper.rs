@@ -114,7 +114,7 @@ pub(super) fn get_pyth_price(
     clock: &Clock,
 ) -> Result<Decimal, ProgramError> {
     #[cfg(feature = "test-sbf")]
-    const STALE_AFTER_SLOTS_ELAPSED: u64 = 10000;
+    const STALE_AFTER_SLOTS_ELAPSED: u64 = 2 * crate::state::SLOTS_PER_YEAR;
     #[cfg(not(feature = "test-sbf"))]
     const STALE_AFTER_SLOTS_ELAPSED: u64 = 3;
     let pyth_price_data = pyth_price_info.try_borrow_data()?;

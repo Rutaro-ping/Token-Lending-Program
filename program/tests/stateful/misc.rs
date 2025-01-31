@@ -31,7 +31,9 @@ impl IntegrationTest {
         assert!(result.is_ok());
     }
     pub async fn alice_repay_sol_to_obligation(&mut self) {
-        let result = self.repay_obligation_liquidity("alice", "sol", 1).await;
+        let result = self
+            .repay_obligation_liquidity("alice", "sol", u64::MAX)
+            .await;
         assert!(result.is_ok());
     }
 }

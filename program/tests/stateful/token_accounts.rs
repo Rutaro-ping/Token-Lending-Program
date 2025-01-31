@@ -235,7 +235,6 @@ impl IntegrationTest {
             Some(&self.test_context.payer.pubkey()),
         );
         let result = sign_and_execute!(self, transaction, authority);
-        println!("result: {:#?}", result);
         assert!(result.is_ok());
     }
     pub(crate) async fn transfer_bewteen_borrowers(

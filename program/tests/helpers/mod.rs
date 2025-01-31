@@ -1056,7 +1056,7 @@ pub fn add_obligation(
         .map(|(borrow_reserve, liquidity_amount)| {
             let borrowed_amount_wads = Decimal::from(*liquidity_amount);
 
-            let mut liquidity = ObligationLiquidity::new(borrow_reserve.pubkey);
+            let mut liquidity = ObligationLiquidity::new(borrow_reserve.pubkey, Decimal::zero());
             liquidity.borrowed_amount_wads = borrowed_amount_wads;
 
             (

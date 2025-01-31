@@ -20,10 +20,10 @@ pub struct ObligationLiquidity {
 }
 
 impl ObligationLiquidity {
-    pub fn new(borrow_reserve: Pubkey) -> Self {
+    pub fn new(borrow_reserve: Pubkey, cumulative_borrow_rate_wads: Decimal) -> Self {
         Self {
             borrow_reserve,
-            cumulative_borrow_rate_wads: Decimal::one(),
+            cumulative_borrow_rate_wads,
             ..Default::default()
         }
     }

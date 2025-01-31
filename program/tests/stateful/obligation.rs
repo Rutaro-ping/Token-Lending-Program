@@ -182,8 +182,6 @@ impl IntegrationTest {
         let obligation = borrower.obligation.as_ref().unwrap();
         let reserve = self.reserves.get(currency).unwrap();
         let accounts = borrower.accounts.get(currency).unwrap();
-        let obligation_state = obligation.get_state(&self.test_context.banks_client).await;
-        msg!("obligation_state: {:#?}", obligation_state);
 
         let mut transaction = Transaction::new_with_payer(
             &[
