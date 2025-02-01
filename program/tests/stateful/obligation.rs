@@ -216,12 +216,13 @@ impl IntegrationTest {
         )
     }
 
-    async fn liquidate_obligation_liquidity(
+    pub async fn liquidate_obligation_liquidity(
         &self,
-        borrower: &Borrower,
+        borrower: &str,
         currency: &str,
         amount: u64,
     ) -> Result<(), BanksClientError> {
+        let borrower = self.borrowers.get(borrower).unwrap();
         let obligation = borrower.obligation.as_ref().unwrap();
         let reserve = self.reserves.get(currency).unwrap();
 
