@@ -5,7 +5,7 @@ use {
         sign_and_execute,
     },
     solana_program_test::BanksClientError,
-    solana_sdk::{msg, pubkey::Pubkey, signer::Signer, transaction::Transaction},
+    solana_sdk::{pubkey::Pubkey, signer::Signer, transaction::Transaction},
     spl_token::instruction::approve,
     spl_token_lending::instruction::builder::{
         borrow_obligation_liquidity, deposit_obligation_collateral, liquidate_obligation,
@@ -146,12 +146,13 @@ impl IntegrationTest {
             &borrower.keypair
         )
     }
-    async fn withdraw_obligation_liquidity(
+    pub async fn withdraw_obligation_liquidity(
         &self,
-        borrower: &Borrower,
+        borrower: &str,
         currency: &str,
         amount: u64,
     ) -> Result<(), BanksClientError> {
+        let borrower = self.borrowers.get(borrower).unwrap();
         let obligation = borrower.obligation.as_ref().unwrap();
         let reserve = self.reserves.get(currency).unwrap();
         let accounts = borrower.accounts.get(currency).unwrap();
@@ -259,7 +260,8 @@ impl IntegrationTest {
         )
     }
 
-    /**first read reseve pubkeys from borrows and deposits, then refresh obligation with them */
+    /**first read reseve pubkeys from borrows and deposits, then refresh
+     * obligation with them */
     pub async fn refresh_obligation(&self, borrower: &str) {
         let obligation = self
             .borrowers

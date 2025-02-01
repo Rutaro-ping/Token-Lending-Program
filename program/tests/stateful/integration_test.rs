@@ -3,7 +3,7 @@ use {
         add_sol_oracle, add_usdc_mint, add_usdc_oracle, get_token_balance, TestLendingMarket,
         TestMint, TestObligation, TestOracle, TestReserve,
     },
-    solana_program_test::{processor, BanksClient, ProgramTest, ProgramTestContext},
+    solana_program_test::{processor, ProgramTest, ProgramTestContext},
     solana_sdk::{pubkey::Pubkey, signature::Keypair},
     spl_token_lending::processor::process_instruction,
     std::collections::HashMap,
@@ -91,10 +91,9 @@ pub struct BorrowerAccounts {
 
 impl BorrowerAccounts {
     pub fn get_account(&self, is_collateral_account: bool) -> Pubkey {
-        if is_collateral_account {
-            self.collateral_account
-        } else {
-            self.token_account
+        match is_collateral_account {
+            true => self.collateral_account,
+            false => self.token_account,
         }
     }
 }

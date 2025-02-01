@@ -1,6 +1,6 @@
 use {
     super::IntegrationTest,
-    solana_sdk::{instruction::InstructionError, msg, transaction::TransactionError},
+    solana_sdk::{instruction::InstructionError, transaction::TransactionError},
     spl_token_lending::error::LendingError,
 };
 

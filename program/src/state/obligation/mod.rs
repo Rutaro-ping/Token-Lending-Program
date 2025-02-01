@@ -101,7 +101,8 @@ impl Obligation {
             );
             return Err(LendingError::ObligationReserveLimit.into());
         }
-        let liquidity = ObligationLiquidity::new(borrow_reserve, current_cumulative_borrow_rate_wads);
+        let liquidity =
+            ObligationLiquidity::new(borrow_reserve, current_cumulative_borrow_rate_wads);
         self.borrows.push(liquidity);
         Ok(self.borrows.last_mut().unwrap())
     }
