@@ -32,7 +32,7 @@ async fn alice_can_brorow_sol_and_repay() {
     //create obligations
     test.create_obligations().await;
     test.refresh_reserves().await;
-    test.refresh_obligation("alice").await;
+ 
     test.alice_borrow_sol_without_collateral().await;
     //It airdrop 1000 tokens to each account of each borrower in respect
     // mint type.

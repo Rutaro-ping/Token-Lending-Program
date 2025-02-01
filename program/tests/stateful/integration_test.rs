@@ -1,9 +1,9 @@
 use {
     crate::helpers::{
-        add_sol_oracle, add_usdc_mint, add_usdc_oracle, TestLendingMarket, TestMint,
-        TestObligation, TestOracle, TestReserve,
+        add_sol_oracle, add_usdc_mint, add_usdc_oracle, get_token_balance, TestLendingMarket,
+        TestMint, TestObligation, TestOracle, TestReserve,
     },
-    solana_program_test::{processor, ProgramTest, ProgramTestContext},
+    solana_program_test::{processor, BanksClient, ProgramTest, ProgramTestContext},
     solana_sdk::{pubkey::Pubkey, signature::Keypair},
     spl_token_lending::processor::process_instruction,
     std::collections::HashMap,
@@ -63,6 +63,24 @@ impl IntegrationTest {
             reserves: HashMap::default(),
             borrowers,
         }
+    }
+    pub async fn get_borrower_balance(
+        &self,
+        borrower: &str,
+        currency: &str,
+        is_collateral_account: bool,
+    ) -> u64 {
+        get_token_balance(
+            &self.test_context.banks_client,
+            self.borrowers
+                .get(borrower)
+                .unwrap()
+                .accounts
+                .get(currency)
+                .unwrap()
+                .get_account(is_collateral_account),
+        )
+        .await
     }
 }
 #[derive(Debug, Clone, Copy)]
