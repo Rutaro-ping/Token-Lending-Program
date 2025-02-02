@@ -9,6 +9,7 @@ version = "0.2.0"
 
 [features]
 default = ["no-entrypoint", "test-sbf"]
+devnet = []
 no-entrypoint = []
 test-sbf = []
 

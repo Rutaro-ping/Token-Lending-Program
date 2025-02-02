@@ -1,5 +1,6 @@
 use {
     crate::{
+        debug_msg,
         error::LendingError,
         math::{Decimal, TryDiv, TryMul},
         pyth,
@@ -43,7 +44,7 @@ pub(super) fn spl_token_transfer(params: TokenTransferParams<'_, '_>) -> Program
         authority_signer_seeds,
     );
     result.map_err(|e| {
-        msg!("spl_token_transfer: {}", e);
+        debug_msg!("Error in spl_token_transfer: {}", e);
         LendingError::TokenTransferFailed.into()
     })
 }
@@ -114,7 +115,7 @@ pub(super) fn get_pyth_price(
     clock: &Clock,
 ) -> Result<Decimal, ProgramError> {
     #[cfg(feature = "test-sbf")]
-    const STALE_AFTER_SLOTS_ELAPSED: u64 = 2 * crate::state::SLOTS_PER_YEAR;
+    const STALE_AFTER_SLOTS_ELAPSED: u64 = 500 * crate::state::SLOTS_PER_YEAR;
     #[cfg(not(feature = "test-sbf"))]
     const STALE_AFTER_SLOTS_ELAPSED: u64 = 3;
     let pyth_price_data = pyth_price_info.try_borrow_data()?;

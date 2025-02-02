@@ -10,6 +10,7 @@ use {
         PROGRAM_VERSION,
     },
     crate::{
+        debug_msg,
         error::LendingError,
         math::{Decimal, Rate, TryAdd, TryDiv, TryMul, TrySub},
         utils::get_pow,
@@ -147,7 +148,15 @@ impl Reserve {
         if slots_elapsed > 0 {
             let current_borrow_rate = self.current_borrow_rate()?;
             self.liquidity
-                .compound_interest(current_borrow_rate, slots_elapsed)?;
+                .compound_interest(current_borrow_rate, slots_elapsed)
+                .map_err(|e| {
+                    debug_msg!(
+                        "Error in accrue_interest:, current_borrow_rate: {}, slots_elapsed: {}",
+                        current_borrow_rate,
+                        slots_elapsed
+                    );
+                    e
+                })?;
         }
         Ok(())
     }
@@ -224,6 +233,9 @@ impl Reserve {
         liquidity: &ObligationLiquidity,
         collateral: &ObligationCollateral,
     ) -> Result<CalculateLiquidationResult, ProgramError> {
+        msg!("calculate_liquidation: {:#?}", obligation);
+        msg!("liquidity: {:#?}", liquidity);
+        msg!("collateral: {:#?}", collateral);
         let bonus_rate = Rate::from_percent(self.config.liquidation_bonus).try_add(Rate::one())?;
         let max_amount = if amount_to_liquidate == u64::MAX {
             liquidity.borrowed_amount_wads

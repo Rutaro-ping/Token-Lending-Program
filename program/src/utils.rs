@@ -96,3 +96,15 @@ macro_rules! assert_key_not_equal {
         crate::assert_not_equal!($left, $right, $msg, $error)
     };
 }
+
+#[macro_export]
+macro_rules! debug_msg {
+    ($($args:tt)*) => {
+        #[cfg(any(
+            test,
+            feature = "test-sbf",
+            feature = "devnet",
+        ))]
+        solana_program::msg!($($args)*);
+    };
+}
