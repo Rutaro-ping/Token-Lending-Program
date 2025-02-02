@@ -63,6 +63,20 @@ pub const TEST_RESERVE_CONFIG: ReserveConfig = ReserveConfig {
         host_fee_percentage: 20,
     },
 };
+
+/**
+ * create new reserve config with given loan to value ratio and liquidation threshold
+ */
+pub fn create_test_reserve_config(
+    loan_to_value_ratio: u8,
+    liquidation_threshold: u8,
+) -> ReserveConfig {
+    ReserveConfig {
+        loan_to_value_ratio,
+        liquidation_threshold,
+        ..TEST_RESERVE_CONFIG
+    }
+}
 #[inline(always)]
 pub async fn get_state<T: Pack + IsInitialized>(
     pub_key: Pubkey,
