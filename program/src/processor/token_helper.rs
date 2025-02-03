@@ -4,6 +4,7 @@ use {
         error::LendingError,
         math::{Decimal, TryDiv, TryMul},
         pyth,
+        state::SLOTS_PER_YEAR,
         utils::get_pow,
     },
     solana_program::{
@@ -17,7 +18,7 @@ use {
         program_pack::Pack,
         pubkey::Pubkey,
     },
-    spl_token::state::Mint,
+    spl_token::state::Mint
 };
 
 /// Issue a spl_token `Transfer` instruction.
@@ -115,7 +116,7 @@ pub(super) fn get_pyth_price(
     clock: &Clock,
 ) -> Result<Decimal, ProgramError> {
     #[cfg(feature = "test-sbf")]
-    const STALE_AFTER_SLOTS_ELAPSED: u64 = 500 * crate::state::SLOTS_PER_YEAR;
+    const STALE_AFTER_SLOTS_ELAPSED: u64 = 100 * crate::state::SLOTS_PER_YEAR;
     #[cfg(not(feature = "test-sbf"))]
     const STALE_AFTER_SLOTS_ELAPSED: u64 = 3;
     let pyth_price_data = pyth_price_info.try_borrow_data()?;
@@ -163,7 +164,17 @@ pub(super) fn get_pyth_price(
         let decimals = get_pow(exponent)?;
         Decimal::from(price).try_div(decimals)?
     };
-
+    #[cfg(feature = "test-sbf")]
+    pub static USDC_PYTH_PRICE: &Pubkey =
+        &Pubkey::from_str_const("992moaMQKs32GKZ9dxi8keyM2bUmbrwBZpK4p2K6X5Vs");
+    //bellow hack is used for test liquidation, as when cannot change
+    #[cfg(feature = "test-sbf")]
+    if pyth_price_info.key == USDC_PYTH_PRICE && slots_elapsed >= SLOTS_PER_YEAR * 2 {
+        debug_msg!(
+            "if time elapsed more than 2 years, drop the USDC price by 20% to test the liquidation"
+        );
+        return Ok(market_price.try_mul(Decimal::from_percent(2))?);
+    }
     Ok(market_price)
 }
 

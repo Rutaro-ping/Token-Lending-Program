@@ -218,21 +218,29 @@ impl IntegrationTest {
 
     pub async fn liquidate_obligation_liquidity(
         &self,
-        borrower: &str,
-        currency: &str,
+        liquidator: &str,
+        liquidatee: &str,
+        repay_currency: &str,
+        withdraw_currency: &str,
         amount: u64,
     ) -> Result<(), BanksClientError> {
-        let borrower = self.borrowers.get(borrower).unwrap();
-        let obligation = borrower.obligation.as_ref().unwrap();
-        let reserve = self.reserves.get(currency).unwrap();
+        let liquidator = self.borrowers.get(liquidator).unwrap();
+        let liquidatee = self.borrowers.get(liquidatee).unwrap();
+        let obligation = liquidatee.obligation.as_ref().unwrap();
+        let repay_reserve = self.reserves.get(repay_currency).unwrap();
+        let withdraw_reserve = self.reserves.get(withdraw_currency).unwrap();
 
         let mut transaction = Transaction::new_with_payer(
             &[
                 approve(
                     &spl_token::id(),
-                    &reserve.user_liquidity_pubkey,
-                    &borrower.user_transfer_authority.pubkey(),
-                    &borrower.keypair.pubkey(),
+                    &liquidator
+                        .accounts
+                        .get(repay_currency)
+                        .unwrap()
+                        .token_account,
+                    &liquidator.user_transfer_authority.pubkey(),
+                    &liquidator.keypair.pubkey(),
                     &[],
                     amount,
                 )
@@ -240,15 +248,19 @@ impl IntegrationTest {
                 liquidate_obligation(
                     spl_token_lending::id(),
                     amount,
-                    reserve.user_liquidity_pubkey,
-                    reserve.user_collateral_pubkey,
-                    reserve.pubkey,
-                    reserve.liquidity_supply_pubkey,
-                    reserve.pubkey,
-                    reserve.collateral_supply_pubkey,
+                    liquidator.user_transfer_authority.pubkey(),
+                    liquidator
+                        .accounts
+                        .get(withdraw_currency)
+                        .unwrap()
+                        .collateral_account,
+                    repay_reserve.pubkey,
+                    repay_reserve.liquidity_supply_pubkey,
+                    withdraw_reserve.pubkey,
+                    withdraw_reserve.collateral_supply_pubkey,
                     obligation.pubkey,
                     self.lending_market.as_ref().unwrap().pubkey,
-                    borrower.user_transfer_authority.pubkey(),
+                    liquidator.user_transfer_authority.pubkey(),
                 ),
             ],
             Some(&self.test_context.payer.pubkey()),
@@ -256,8 +268,8 @@ impl IntegrationTest {
         sign_and_execute!(
             self,
             transaction,
-            &borrower.keypair,
-            &borrower.user_transfer_authority
+            &liquidator.keypair,
+            &liquidator.user_transfer_authority
         )
     }
 
