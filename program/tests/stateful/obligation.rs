@@ -229,16 +229,16 @@ impl IntegrationTest {
         let obligation = liquidatee.obligation.as_ref().unwrap();
         let repay_reserve = self.reserves.get(repay_currency).unwrap();
         let withdraw_reserve = self.reserves.get(withdraw_currency).unwrap();
-
+        let liquidator_repay_account = &liquidator
+            .accounts
+            .get(repay_currency)
+            .unwrap()
+            .token_account;
         let mut transaction = Transaction::new_with_payer(
             &[
                 approve(
                     &spl_token::id(),
-                    &liquidator
-                        .accounts
-                        .get(repay_currency)
-                        .unwrap()
-                        .token_account,
+                    liquidator_repay_account,
                     &liquidator.user_transfer_authority.pubkey(),
                     &liquidator.keypair.pubkey(),
                     &[],
@@ -248,7 +248,7 @@ impl IntegrationTest {
                 liquidate_obligation(
                     spl_token_lending::id(),
                     amount,
-                    liquidator.user_transfer_authority.pubkey(),
+                    *liquidator_repay_account,
                     liquidator
                         .accounts
                         .get(withdraw_currency)

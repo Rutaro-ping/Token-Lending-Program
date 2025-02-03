@@ -18,7 +18,7 @@ use {
         program_pack::Pack,
         pubkey::Pubkey,
     },
-    spl_token::state::Mint
+    spl_token::state::Mint,
 };
 
 /// Issue a spl_token `Transfer` instruction.
@@ -171,9 +171,9 @@ pub(super) fn get_pyth_price(
     #[cfg(feature = "test-sbf")]
     if pyth_price_info.key == USDC_PYTH_PRICE && slots_elapsed >= SLOTS_PER_YEAR * 2 {
         debug_msg!(
-            "if time elapsed more than 2 years, drop the USDC price by 20% to test the liquidation"
+            "if time elapsed more than 2 years, drop the USDC price by 1/1000 to test the liquidation"
         );
-        return Ok(market_price.try_mul(Decimal::from_percent(2))?);
+        return Ok(market_price.try_div(4000000)?);
     }
     Ok(market_price)
 }

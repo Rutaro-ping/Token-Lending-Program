@@ -5,7 +5,7 @@ use {
         sign_and_execute, CURRENCY_TYPE,
     },
     solana_program_test::BanksClientError,
-    solana_sdk::{msg, native_token::LAMPORTS_PER_SOL, signer::Signer, transaction::Transaction},
+    solana_sdk::{native_token::LAMPORTS_PER_SOL, signer::Signer, transaction::Transaction},
     spl_token::instruction::approve,
     spl_token_lending::{
         instruction::builder::{
@@ -92,8 +92,7 @@ impl IntegrationTest {
                 .collect::<Vec<_>>(),
             Some(&self.test_context.payer.pubkey()),
         );
-        msg!("transaction: {:#?}", sign_and_execute!(self, transaction));
-        // assert!(sign_and_execute!(self, transaction).is_ok());
+        assert!(sign_and_execute!(self, transaction).is_ok());
     }
     pub(crate) async fn modify_reserve_config(
         &self,

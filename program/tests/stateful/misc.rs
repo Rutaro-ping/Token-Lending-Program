@@ -28,7 +28,6 @@ impl IntegrationTest {
         let result = self
             .borrow_obligation_liquidity("sol", alice_borrower, None, None)
             .await;
-        println!("result: {:?}", result);
         assert!(result.is_ok());
     }
     pub async fn alice_repay_sol_to_obligation(&mut self) {

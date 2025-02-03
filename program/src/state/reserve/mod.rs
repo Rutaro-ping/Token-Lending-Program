@@ -233,9 +233,6 @@ impl Reserve {
         liquidity: &ObligationLiquidity,
         collateral: &ObligationCollateral,
     ) -> Result<CalculateLiquidationResult, ProgramError> {
-        msg!("calculate_liquidation: {:#?}", obligation);
-        msg!("liquidity: {:#?}", liquidity);
-        msg!("collateral: {:#?}", collateral);
         let bonus_rate = Rate::from_percent(self.config.liquidation_bonus).try_add(Rate::one())?;
         let max_amount = if amount_to_liquidate == u64::MAX {
             liquidity.borrowed_amount_wads
