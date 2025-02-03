@@ -81,10 +81,12 @@ async fn alice_can_brorow_sol_and_repay() {
     let bob_sol_balance_after_redeem = test.get_borrower_balance("bob", "sol", false).await;
     // msg!("can be redeemed: {}", bob_sol_balance_after_redeem);
     assert!(bob_sol_balance_after_redeem > 0);
+    test.go_to_slot(SLOTS_PER_YEAR + 3).await;
+    test.refresh_reserves().await;
+    test.refresh_obligation("alice").await;
     let withdraw_result = test
         .withdraw_obligation_liquidity("alice", "usdc", u64::MAX)
         .await;
-    // msg!("withdraw_result: {:?}", withdraw_result);
     assert!(withdraw_result.is_ok());
 }
 

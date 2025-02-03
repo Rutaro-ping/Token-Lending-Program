@@ -161,8 +161,8 @@ impl IntegrationTest {
             &[withdraw_obligation_collateral(
                 spl_token_lending::id(),
                 amount,
+                reserve.collateral_supply_pubkey,
                 accounts.collateral_account,
-                accounts.token_account,
                 reserve.pubkey,
                 obligation.pubkey,
                 self.lending_market.as_ref().unwrap().pubkey,
