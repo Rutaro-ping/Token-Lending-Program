@@ -1,14 +1,12 @@
 [package]
-authors = ["Solana Labs Maintainers <maintainers@solanalabs.com>"]
-description = "Solana Program Library Token Lending"
+description = "Token Lending Program"
 edition = "2021"
 license = "Apache-2.0"
 name = "spl-token-lending"
-repository = "https://github.com/solana-labs/solana-program-library"
 version = "0.2.0"
 
 [features]
-default = ["no-entrypoint", "test-sbf"]
+default = ["no-entrypoint"]
 devnet = []
 no-entrypoint = []
 test-sbf = []

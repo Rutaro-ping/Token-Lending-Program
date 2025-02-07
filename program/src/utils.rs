@@ -106,5 +106,7 @@ macro_rules! debug_msg {
             feature = "devnet",
         ))]
         solana_program::msg!($($args)*);
+        #[cfg(not(any(test, feature = "test-sbf", feature = "devnet")))]
+        let _ = format_args!($($args)*);  // Consume args to avoid unused variable warnings
     };
 }

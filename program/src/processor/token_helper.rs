@@ -4,7 +4,6 @@ use {
         error::LendingError,
         math::{Decimal, TryDiv, TryMul},
         pyth,
-        state::SLOTS_PER_YEAR,
         utils::get_pow,
     },
     solana_program::{
@@ -169,7 +168,7 @@ pub(super) fn get_pyth_price(
         &Pubkey::from_str_const("992moaMQKs32GKZ9dxi8keyM2bUmbrwBZpK4p2K6X5Vs");
     //bellow hack is used for test liquidation, as when cannot change
     #[cfg(feature = "test-sbf")]
-    if pyth_price_info.key == USDC_PYTH_PRICE && slots_elapsed >= SLOTS_PER_YEAR * 2 {
+    if pyth_price_info.key == USDC_PYTH_PRICE && slots_elapsed >= crate::state::SLOTS_PER_YEAR * 2 {
         debug_msg!(
             "if time elapsed more than 2 years, drop the USDC price by 1/1000 to test the liquidation"
         );

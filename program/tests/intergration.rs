@@ -15,7 +15,7 @@ use {
 };
 
 #[tokio::test]
-async fn alice_can_brorow_sol_and_repay() {
+async fn alice_can_borrow_sol_and_repay() {
     let mut test = IntegrationTest::new().await;
     let temp_lending_market_owner = Keypair::new();
     //create a market
@@ -91,7 +91,7 @@ async fn alice_can_brorow_sol_and_repay() {
 }
 
 #[tokio::test]
-async fn alice_can_brorow_sol_but_got_liquidited_from_bob() {
+async fn alice_can_borrow_sol_but_got_liquidited_from_bob() {
     let mut test = IntegrationTest::new().await;
     test.create_market(None).await;
     let sol_reserve_config = Some(create_test_reserve_config(90, 99));
