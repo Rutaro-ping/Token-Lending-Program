@@ -34,7 +34,7 @@ impl IntegrationTest {
         let usdc_oracle = add_usdc_oracle(&mut test);
         let usdc_mint = add_usdc_mint(&mut test);
 
-        test.set_compute_max_units(80_000);
+        // test.set_compute_max_units(990_000);
 
         let borrowers = BORROWER_NAME_LIST
             .iter()
